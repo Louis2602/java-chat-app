@@ -5,19 +5,21 @@ import java.net.*;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SocketController {
-
-    public String serverName;
-    public int serverPort;
+public class Server {
+    /*
+    Server Config
+     */
+    final int port = 8080;
     ServerSocket s;
     public List<Client> connectedClient;
-    public List<Room> allRooms;
+    public List<Group> allGroups;
+    private String accountLists = "data\\accounts.txt";
 
-    public void OpenSocket(int port) {
+    public Server() {
         try {
             s = new ServerSocket(port);
             connectedClient = new ArrayList<Client>();
-            allRooms = new ArrayList<Room>();
+            allGroups = new ArrayList<Group>();
 
             new Thread(() -> {
                 try {
