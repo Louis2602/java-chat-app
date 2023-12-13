@@ -2,53 +2,36 @@ package server;
 
 import java.io.*;
 import java.net.*;
-import java.util.ArrayList;
-import java.util.List;
 
 public class Server {
-    /*
-    Server Config
-     */
-    final int port = 8080;
-    ServerSocket s;
-    public List<Client> connectedClient;
-    public List<Group> allGroups;
-    private String accountLists = "data\\accounts.txt";
+    private static final int port = 8080;
+    public static final String ACCOUNTS_FILE = "accounts.txt";
 
-    public Server() {
+    private ServerSocket serverSocket;
+
+    public void startServer() {
         try {
-            s = new ServerSocket(port);
-            connectedClient = new ArrayList<Client>();
-            allGroups = new ArrayList<Group>();
+            serverSocket = new ServerSocket(port);
+            System.out.println("Server is running at port: " + port + ". Waiting for clients...");
+            while(!serverSocket.isClosed()) {
+                // Waiting request from clients
+                Socket socket = serverSocket.accept();
+                System.out.println("A new client has connected!");
 
-            new Thread(() -> {
-                try {
-                    do {
-                        System.out.println("Waiting for client");
-
-                        Socket clientSocket = s.accept();
-
-                        ClientThread clientCommunicator = new ClientThread(clientSocket);
-                        clientCommunicator.start();
-
-                    } while (s != null && !s.isClosed());
-                } catch (IOException ioe) {
-                    System.out.println("Server or client socket closed");
-                }
-            }).start();
-
-        } catch (IOException ioe) {
-            ioe.printStackTrace();
+                new Thread(new ClientHandler(socket)).start();
+            }
+        } catch(IOException e) {
+            e.printStackTrace();
         }
     }
 
-    public void closeSocket() {
+    public void closeServerSocket() {
         try {
-            for (Client client : connectedClient)
-                client.socket.close();
-            s.close();
-        } catch (IOException ioe) {
-            ioe.printStackTrace();
+            if(serverSocket != null) {
+                serverSocket.close();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 }

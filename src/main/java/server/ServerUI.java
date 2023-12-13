@@ -2,42 +2,42 @@ package server;
 
 import javax.swing.*;
 import java.awt.*;
+import java.net.ServerSocket;
 
 public class ServerUI {
     private static void addComponents(Container contentPane) {
+        contentPane.setLayout(new GridBagLayout());
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.insets = new Insets(10, 10, 10, 10); // Padding
+
         JButton startBtn = new JButton("Start server");
         startBtn.setFont(new Font("Times New Roman", Font.BOLD, 14));
 
-        JPanel panel = new JPanel();
-        GroupLayout gl_contentPane = new GroupLayout(contentPane);
-        gl_contentPane.setHorizontalGroup(
-                gl_contentPane.createParallelGroup(GroupLayout.Alignment.TRAILING)
-                        .addComponent(panel, GroupLayout.DEFAULT_SIZE, 282, Short.MAX_VALUE)
-                        .addGroup(gl_contentPane.createSequentialGroup()
-                                .addGap(90)
-                                .addComponent(startBtn, GroupLayout.DEFAULT_SIZE, 111, Short.MAX_VALUE)
-                                .addGap(81))
-        );
-        gl_contentPane.setVerticalGroup(
-                gl_contentPane.createParallelGroup(GroupLayout.Alignment.LEADING)
-                        .addGroup(gl_contentPane.createSequentialGroup()
-                                .addGap(43)
-                                .addComponent(startBtn, GroupLayout.PREFERRED_SIZE, 35, GroupLayout.PREFERRED_SIZE)
-                                .addPreferredGap(LayoutStyle.ComponentPlacement.UNRELATED)
-                                .addComponent(panel, GroupLayout.DEFAULT_SIZE, 62, Short.MAX_VALUE)
-                                .addContainerGap())
-        );
-
         JLabel text = new JLabel("Click here to start server");
         text.setFont(new Font("Times New Roman", Font.PLAIN, 14));
-        panel.add(text);
-        contentPane.setLayout(gl_contentPane);
+
+        constraints.gridx = 0;
+        constraints.gridy = 0;
+        constraints.anchor = GridBagConstraints.CENTER;
+        contentPane.add(startBtn, constraints);
+
+        constraints.gridy = 1;
+        contentPane.add(text, constraints);
+
         // Start the server
         startBtn.addActionListener(e -> {
-            Thread serverThread = new Thread(Server::new);
-            serverThread.start();
-            text.setText("Start server successful");
             startBtn.setEnabled(false);
+            text.setText("Starting server...");
+
+            // Start the server in a separate thread
+            new Thread(() -> {
+                Server server = new Server();
+                server.startServer();
+                SwingUtilities.invokeLater(() -> {
+                    text.setText("Server started successfully");
+                    startBtn.setEnabled(true);
+                });
+            }).start();
         });
     }
 
