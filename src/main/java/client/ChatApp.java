@@ -2,8 +2,7 @@ package client;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+import java.io.*;
 
 public class ChatApp extends JFrame {
     private JList<String> onlineUsersList;
@@ -12,7 +11,19 @@ public class ChatApp extends JFrame {
     private JTextField messageField;
     private JList<String> currentChatUsersList;
 
-    public ChatApp() {
+    private String username;
+    private BufferedReader reader;
+    private BufferedWriter writer;
+
+    public ChatApp(String username, BufferedReader reader, BufferedWriter writer) {
+        this.username = username;
+        this.reader = reader;
+        this.writer = writer;
+
+        createChatFrame();
+    }
+
+    private void createChatFrame() {
         setTitle("Chat Application");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setResizable(false);
@@ -31,10 +42,10 @@ public class ChatApp extends JFrame {
         JPanel serverInfoPanel = createPanelWithBorderLayout("Server Info");
         JLabel serverIP = new JLabel("Server IP: 127.0.0.1");
         JLabel serverPort = new JLabel("Server Port: 8080");
-        JLabel totalOnlineUsers = new JLabel("Total Online Users: 10");
+        JLabel userName = new JLabel("User: " + username);
         serverInfoPanel.add(serverIP, BorderLayout.NORTH);
         serverInfoPanel.add(serverPort, BorderLayout.CENTER);
-        serverInfoPanel.add(totalOnlineUsers, BorderLayout.SOUTH);
+        serverInfoPanel.add(userName, BorderLayout.SOUTH);
 
         topPanel.add(serverInfoPanel, BorderLayout.NORTH);
 
@@ -69,6 +80,44 @@ public class ChatApp extends JFrame {
         messageField = new JTextField(25);
         JButton sendButton = new JButton("Send");
         JButton uploadButton = new JButton("Upload File");
+        uploadButton.addActionListener(e -> {
+            JFileChooser fileChooser = new JFileChooser();
+            int rVal = fileChooser.showOpenDialog(mainPanel.getParent());
+            if (rVal == JFileChooser.APPROVE_OPTION) {
+                byte[] selectedFile = new byte[(int) fileChooser.getSelectedFile().length()];
+                BufferedInputStream bis;
+                try {
+                    bis = new BufferedInputStream(new FileInputStream(fileChooser.getSelectedFile()));
+                    // Đọc file vào biến selectedFile
+                    bis.read(selectedFile, 0, selectedFile.length);
+
+                    writer.write("File" + "\n");
+                    //writer.write(lbReceiver.getText());
+                    writer.write(fileChooser.getSelectedFile().getName());
+                    writer.write(String.valueOf(selectedFile.length));
+
+                    int size = selectedFile.length;
+                    int bufferSize = 2048;
+                    int offset = 0;
+
+                    // Lần lượt gửi cho server từng buffer cho đến khi hết file
+                    /*while (size > 0) {
+                        writer.write(selectedFile, offset, Math.min(size, bufferSize));
+                        offset += Math.min(size, bufferSize);
+                        size -= bufferSize;
+                    }
+
+                    writer.flush();*/
+
+                    bis.close();
+
+                    // In ra màn hình file
+                    //newFile(username, fileChooser.getSelectedFile().getName(), selectedFile, true);
+                } catch (IOException e1) {
+                    e1.printStackTrace();
+                }
+            }
+        });
 
         messagePanel.add(messageField, BorderLayout.CENTER);
         messagePanel.add(sendButton, BorderLayout.EAST);

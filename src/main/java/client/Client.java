@@ -1,4 +1,4 @@
-import client.ChatApp;
+package client;
 
 import javax.swing.*;
 import java.awt.*;
@@ -13,6 +13,11 @@ public class Client extends JFrame {
 
     private static final int SERVER_PORT = 8080;
     private static final String SERVER_ADDRESS = "localhost";
+
+    private Socket socket;
+
+    private BufferedReader reader;
+    private BufferedWriter writer;
 
     public Client() {
         setTitle("Login/Register");
@@ -88,14 +93,19 @@ public class Client extends JFrame {
         registerButton.addActionListener(e -> {
             String username = usernameField.getText();
             String password = String.valueOf(passwordField.getPassword());
+            if (username.isEmpty() || password.isEmpty()) {
+                JOptionPane.showMessageDialog(Client.this, "Username or Password must not be empty!");
+                return;
+            }
             sendRequest("REGISTER", username, password);
         });
     }
 
     private void sendRequest(String requestType, String username, String password) {
-        try (Socket socket = new Socket(SERVER_ADDRESS, SERVER_PORT);
-             BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()))) {
+        try {
+            socket = new Socket(SERVER_ADDRESS, SERVER_PORT);
+            this.reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            this.writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
 
             writer.write(requestType + "\n");
             writer.write(username + "\n");
@@ -147,9 +157,11 @@ public class Client extends JFrame {
             app.setLocation(x, y);
         });
     }
+
     private void openChatApp() {
         SwingUtilities.invokeLater(() -> {
-            ChatApp chatApp = new ChatApp();
+            String username = usernameField.getText();
+            ChatApp chatApp = new ChatApp(username, reader, writer);
             chatApp.setVisible(true);
 
             // Centering the frame on screen

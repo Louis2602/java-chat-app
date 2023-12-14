@@ -57,6 +57,7 @@ public class ClientHandler implements Runnable {
             while ((line = br.readLine()) != null) {
                 String[] parts = line.split(":");
                 if (parts.length == 2 && parts[0].equals(username) && parts[1].equals(password)) {
+                    this.clientUsername = username;
                     writer.write("LoginSuccessful");
                     writer.newLine();
                     writer.flush();
