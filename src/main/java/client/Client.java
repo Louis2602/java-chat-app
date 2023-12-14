@@ -1,3 +1,5 @@
+import client.ChatApp;
+
 import javax.swing.*;
 import java.awt.*;
 import java.io.*;
@@ -56,20 +58,19 @@ public class Client extends JFrame {
         registerButton.setForeground(Color.WHITE); // Text color
 
         // Center the login and register buttons with space between them
-        JPanel buttonPanel = new JPanel(new GridLayout(1, 3, 10, 0)); // Using GridLayout for button arrangement
+        JPanel buttonPanel = new JPanel(new GridLayout(1, 3, 5, 0)); // Using GridLayout for button arrangement
 
         // Create an empty panel for spacing
-        JPanel emptyPanel = new JPanel();
-        buttonPanel.add(emptyPanel); // Add the empty panel for spacing
-
         gbc.gridx = 0;
         gbc.gridy = 2;
         gbc.gridwidth = 1;
+
         buttonPanel.add(loginButton, gbc);
 
         gbc.gridx = 1;
         gbc.gridy = 2;
         gbc.gridwidth = 1;
+
         buttonPanel.add(registerButton, gbc);
 
         loginPanel.add(buttonPanel, gbc);
@@ -113,7 +114,8 @@ public class Client extends JFrame {
             switch (response) {
                 case "LoginSuccessful":
                     JOptionPane.showMessageDialog(Client.this, "Login successful!");
-                    // Additional actions after successful login
+                    openChatApp();
+                    dispose();
                     break;
                 case "InvalidCredentials":
                     JOptionPane.showMessageDialog(Client.this, "Invalid username or password!");
@@ -137,6 +139,24 @@ public class Client extends JFrame {
         SwingUtilities.invokeLater(() -> {
             Client app = new Client();
             app.setVisible(true);
+
+            // Centering the frame on screen
+            Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+            int x = (screenSize.width - app.getWidth()) / 2;
+            int y = (screenSize.height - app.getHeight()) / 2;
+            app.setLocation(x, y);
+        });
+    }
+    private void openChatApp() {
+        SwingUtilities.invokeLater(() -> {
+            ChatApp chatApp = new ChatApp();
+            chatApp.setVisible(true);
+
+            // Centering the frame on screen
+            Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+            int x = (screenSize.width - chatApp.getWidth()) / 2;
+            int y = (screenSize.height - chatApp.getHeight()) / 2;
+            chatApp.setLocation(x, y);
         });
     }
 }

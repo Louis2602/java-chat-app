@@ -29,6 +29,8 @@ public class ClientHandler implements Runnable {
         while (socket.isConnected()) {
             try {
                 request = reader.readLine();
+                if (request == null)
+                    throw new IOException();
                 System.out.println("Request from client: " + request);
                 //broadcastMessage(messageFromClient);
                 switch (request) {

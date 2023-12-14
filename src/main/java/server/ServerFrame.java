@@ -2,9 +2,8 @@ package server;
 
 import javax.swing.*;
 import java.awt.*;
-import java.net.ServerSocket;
 
-public class ServerUI {
+public class ServerFrame {
     private static void addComponents(Container contentPane) {
         contentPane.setLayout(new GridBagLayout());
         GridBagConstraints constraints = new GridBagConstraints();
@@ -26,17 +25,14 @@ public class ServerUI {
 
         // Start the server
         startBtn.addActionListener(e -> {
-            startBtn.setEnabled(false);
-            text.setText("Starting server...");
-
             // Start the server in a separate thread
+            SwingUtilities.invokeLater(() -> {
+                text.setText("Server started successfully");
+                startBtn.setEnabled(false);
+            });
             new Thread(() -> {
                 Server server = new Server();
                 server.startServer();
-                SwingUtilities.invokeLater(() -> {
-                    text.setText("Server started successfully");
-                    startBtn.setEnabled(true);
-                });
             }).start();
         });
     }
