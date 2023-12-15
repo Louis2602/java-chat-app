@@ -2,6 +2,8 @@ package client;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.*;
 
 public class ChatApp extends JFrame {
@@ -10,17 +12,25 @@ public class ChatApp extends JFrame {
     private JTextArea chatArea;
     private JTextField messageField;
     private JList<String> currentChatUsersList;
-
     private String username;
     private BufferedReader reader;
     private BufferedWriter writer;
+    Thread clientReceiver;
 
     public ChatApp(String username, BufferedReader reader, BufferedWriter writer) {
         this.username = username;
-        this.reader = reader;
         this.writer = writer;
+        this.reader = reader;
+        clientReceiver = new Thread(new ClientReceiver(reader, this));
+        clientReceiver.start();
 
         createChatFrame();
+    }
+    public void updateOnlineUsersList(DefaultListModel<String> model) {
+        onlineUsersList.setModel(model);
+    }
+    public String getUsername() {
+        return this.username;
     }
 
     private void createChatFrame() {
@@ -80,6 +90,7 @@ public class ChatApp extends JFrame {
         messageField = new JTextField(25);
         JButton sendButton = new JButton("Send");
         JButton uploadButton = new JButton("Upload File");
+
         uploadButton.addActionListener(e -> {
             JFileChooser fileChooser = new JFileChooser();
             int rVal = fileChooser.showOpenDialog(mainPanel.getParent());
@@ -128,8 +139,8 @@ public class ChatApp extends JFrame {
 
         JPanel rightPanel = createPanelWithBorderLayout("Current Chat Users");
         rightPanel.setLayout(new GridBagLayout());
-
         currentChatUsersList = new JList<>(new String[]{"User A", "User B", "User C"}); // Sample data for current chat users
+
         JScrollPane currentChatUsersScrollPane = new JScrollPane(currentChatUsersList);
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.gridx = 0;
@@ -144,6 +155,32 @@ public class ChatApp extends JFrame {
         rightPanel.setPreferredSize(rightPanelPreferred);
 
         mainPanel.add(rightPanel, BorderLayout.EAST);
+
+        // Request to close client socket when logout
+        this.addWindowListener(new WindowAdapter() {
+            public void windowClosing(WindowEvent e) {
+
+                try {
+                    writer.write("LOGOUT" + "\n");
+                    writer.flush();
+
+                    try {
+                        clientReceiver.join();
+                    } catch (InterruptedException e1) {
+                        e1.printStackTrace();
+                    }
+
+                    if (reader != null) {
+                        reader.close();
+                    }
+                    if (writer != null) {
+                        writer.close();
+                    }
+                } catch (IOException e1) {
+                    e1.printStackTrace();
+                }
+            }
+        });
 
         add(mainPanel);
         pack();

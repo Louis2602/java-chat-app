@@ -6,11 +6,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
 public class ClientHandler implements Runnable {
-    public static ArrayList<ClientHandler> clientHandlers = new ArrayList<>();
     private Socket socket;
     private BufferedReader reader;
     private BufferedWriter writer;
     private String clientUsername;
+    private boolean isLoggedIn;
 
 
     public ClientHandler(Socket socket) {
@@ -28,17 +28,20 @@ public class ClientHandler implements Runnable {
         String request;
         while (socket.isConnected()) {
             try {
+                // Read request from client
                 request = reader.readLine();
                 if (request == null)
                     throw new IOException();
-                System.out.println("Request from client: " + request);
+                System.out.println("[ClientHandler]: Request from client: " + request);
                 //broadcastMessage(messageFromClient);
                 switch (request) {
-                    case "REGISTER":
-                        handleRegister(reader, writer);
-                        break;
-                    case "LOGIN":
-                        handleLogin(reader, writer);
+                    case "LOGOUT":
+                        writer.write("SAFE TO LEAVE" + "\n");
+                        writer.flush();
+
+                        closeEverything(socket, reader, writer);
+                        isLoggedIn = false;
+                        Server.updateOnlineUsers();
                         break;
                 }
             } catch (IOException e) {
@@ -48,67 +51,37 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    private void handleLogin(BufferedReader reader, BufferedWriter writer) throws IOException {
-        String username = reader.readLine();
-        String password = reader.readLine();
-
-        try (BufferedReader br = new BufferedReader(new FileReader(Server.ACCOUNTS_FILE))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] parts = line.split(":");
-                if (parts.length == 2 && parts[0].equals(username) && parts[1].equals(password)) {
-                    this.clientUsername = username;
-                    writer.write("LoginSuccessful");
-                    writer.newLine();
-                    writer.flush();
-                    return;
-                }
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        writer.write("InvalidCredentials");
-        writer.newLine();
-        writer.flush();
+    public BufferedWriter getWriter() {
+        return this.writer;
+    }
+    public BufferedReader getReader() {
+        return this.reader;
+    }
+    public String getUsername() {
+        return this.clientUsername;
+    }
+    public void setUsername(String username) {
+        this.clientUsername = username;
+    }
+    public void setIsLoggedIn(boolean isLoggedIn) {
+        this.isLoggedIn = isLoggedIn;
     }
 
-    private void handleRegister(BufferedReader reader, BufferedWriter writer) throws IOException {
-        String username = reader.readLine();
-        String password = reader.readLine();
+    public boolean getIsLoggedIn() {
+        return this.isLoggedIn;
+    }
 
-        System.out.println(username);
-        System.out.println(password);
-
-
-        try (BufferedWriter bw = new BufferedWriter(new FileWriter(Server.ACCOUNTS_FILE, true))) {
-            try (BufferedReader br = new BufferedReader(new FileReader(Server.ACCOUNTS_FILE))) {
-                String line;
-                while ((line = br.readLine()) != null) {
-                    String[] parts = line.split(":");
-                    if (parts.length > 0 && parts[0].equals(username)) {
-                        writer.write("UsernameExists");
-                        writer.newLine();
-                        writer.flush();
-                        return; // Username already exists
-                    }
-                }
-            }
-            bw.write(username + ":" + password + "\n");
-            writer.write("RegistrationSuccessful");
-            writer.newLine();
-            writer.flush();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+    private void handleLogout() {
+        closeEverything(socket, reader, writer);
     }
 
     /*
     Send the message to all the clients in a group chat, except the one who send
      */
-    public void broadcastMessage(String messageToSend) {
-        for(ClientHandler clientHandler : clientHandlers) {
+  /*  public void broadcastMessage(String messageToSend) {
+        for (ClientHandler clientHandler : clientHandlers) {
             try {
-                if(!clientHandler.clientUsername.equals(clientUsername)) {
+                if (!clientHandler.clientUsername.equals(clientUsername)) {
                     clientHandler.writer.write(messageToSend);
                     clientHandler.writer.newLine();
                     clientHandler.writer.flush();
@@ -117,26 +90,26 @@ public class ClientHandler implements Runnable {
                 closeEverything(socket, reader, writer);
             }
         }
-    }
+    }*/
 
     public void removeClientHandler() {
-        clientHandlers.remove(this);
-        broadcastMessage(clientUsername + " has left the chat!");
+        Server.clientHandlers.remove(this);
+        //broadcastMessage(clientUsername + " has left the chat!");
     }
 
     public void closeEverything(Socket socket, BufferedReader reader, BufferedWriter writer) {
         removeClientHandler();
         try {
-            if(reader != null) {
+            if (reader != null) {
                 reader.close();
             }
-            if(writer != null) {
+            if (writer != null) {
                 writer.close();
             }
-            if(socket != null) {
+            if (socket != null) {
                 socket.close();
             }
-        } catch(IOException e) {
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
