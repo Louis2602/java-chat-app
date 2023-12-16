@@ -3,22 +3,27 @@ package client;
 import server.Server;
 
 import javax.swing.*;
-import javax.swing.text.StyledDocument;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
+import java.util.HashMap;
+import java.util.Map;
 
 public class ChatApp extends JFrame {
     private JList<String> onlineUsersList;
     private JList<String> groupsList;
-    private JTextArea chatArea;
     private JTextField messageField;
+    private JTextArea tabChatArea;
     private JList<String> currentChatUsersList;
     private String username;
+    private String recipient = "";
     private BufferedReader reader;
     private BufferedWriter writer;
     Thread clientReceiver;
     private JTabbedPane conversationsTabbedPane;
+
+    private Map<String, JTextArea> userChatAreas = new HashMap<>();
+
 
     public ChatApp(String username, BufferedReader reader, BufferedWriter writer) {
         this.username = username;
@@ -76,9 +81,9 @@ public class ChatApp extends JFrame {
                     JList<String> list = (JList<String>) e.getSource();
                     int index = list.locationToIndex(e.getPoint()); // Get the index of the clicked item
                     if (index >= 0) {
-                        String selectedUser = list.getModel().getElementAt(index);
+                        recipient = list.getModel().getElementAt(index);
                         // You can start a conversation with the selected user here
-                        startConversation(selectedUser);
+                        startConversation(recipient);
                     }
                 }
             }
@@ -99,10 +104,12 @@ public class ChatApp extends JFrame {
         mainPanel.add(splitPane, BorderLayout.WEST);
 
         JPanel centerPanel = createPanelWithBorderLayout("Chat");
-        chatArea = new JTextArea();
-        chatArea.setEditable(false);
         conversationsTabbedPane = new JTabbedPane();
         centerPanel.add(conversationsTabbedPane, BorderLayout.CENTER);
+
+        tabChatArea = new JTextArea();
+        tabChatArea.setEditable(false);
+        userChatAreas.put(username, tabChatArea);
 
         mainPanel.add(centerPanel, BorderLayout.CENTER);
 
@@ -161,8 +168,6 @@ public class ChatApp extends JFrame {
     }
 
     private void startConversation(String selectedUser) {
-        //chatArea.setText("Conversation started with: " + selectedUser + "\n");
-        System.out.println("Conversation started with: " + selectedUser + "\n");
         int tabCount = conversationsTabbedPane.getTabCount();
         boolean tabExists = false;
         int tabIndex = 0;
@@ -176,27 +181,52 @@ public class ChatApp extends JFrame {
 
         if (!tabExists) {
             JPanel chatPanel = createChatPanel(selectedUser);
+            JPanel tabHeader = createTabHeader(selectedUser);
             conversationsTabbedPane.addTab(selectedUser, chatPanel);
+            conversationsTabbedPane.setTabComponentAt(conversationsTabbedPane.indexOfTab(selectedUser), tabHeader);
             tabIndex = conversationsTabbedPane.indexOfTab(selectedUser);
         }
 
         // Select the tab for the selected user
         conversationsTabbedPane.setSelectedIndex(tabIndex);
-     /*   String chatHistory = loadChatHistory(selectedUser); // Load chat history for the selected user
-
-        // Display conversation information in the chat area
-        if (chatHistory != null && !chatHistory.isEmpty()) {
-            chatArea.append("Chat History:\n" + chatHistory); // Display loaded chat history
-        } else {
-            chatArea.append("No chat history found with " + selectedUser);
-        }*/
-
+        String chatHistory = ChatHistory.loadChatHistory(username, selectedUser); // Load chat history
+        JTextArea chatTextArea = userChatAreas.get(selectedUser);
+        if (chatTextArea != null && chatHistory != null && !chatHistory.isEmpty()) {
+            chatTextArea.append(chatHistory); // Display loaded chat history
+        }
     }
+    private JPanel createTabHeader(String selectedUser) {
+        JPanel tabHeader = new JPanel(new BorderLayout());
+        tabHeader.setOpaque(false); // Make the tab header transparent
 
+        JLabel titleLabel = new JLabel(selectedUser);
+        titleLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 5)); // Add padding between label and button
+
+        JButton closeButton = new JButton("x");
+        closeButton.setFocusable(false);
+        closeButton.setBorderPainted(false);
+        closeButton.setContentAreaFilled(false);
+        closeButton.setForeground(Color.RED);
+        closeButton.addActionListener(e -> {
+            int tabIndex = conversationsTabbedPane.indexOfTab(selectedUser);
+            if (tabIndex >= 0) {
+                conversationsTabbedPane.remove(tabIndex);
+            }
+        });
+
+        tabHeader.add(titleLabel, BorderLayout.CENTER);
+        tabHeader.add(closeButton, BorderLayout.EAST);
+
+        return tabHeader;
+    }
     private JPanel createChatPanel(String selectedUser) {
         JPanel chatPanel = new JPanel(new BorderLayout());
 
-        JScrollPane chatScrollPane = new JScrollPane(chatArea);
+        tabChatArea = new JTextArea();
+        tabChatArea.setEditable(false);
+        userChatAreas.put(selectedUser, tabChatArea);
+
+        JScrollPane chatScrollPane = new JScrollPane(tabChatArea);
         chatPanel.add(chatScrollPane, BorderLayout.CENTER);
 
         JPanel messagePanel = new JPanel(new BorderLayout());
@@ -210,9 +240,10 @@ public class ChatApp extends JFrame {
         chatPanel.add(messagePanel, BorderLayout.SOUTH);
 
         sendButton.addActionListener(e -> {
-            sendMessage();
+            sendMessage(selectedUser);
         });
 
+        // handle file
        /* uploadButton.addActionListener(e -> {
             JFileChooser fileChooser = new JFileChooser();
             int rVal = fileChooser.showOpenDialog(mainPanel.getParent());
@@ -234,13 +265,13 @@ public class ChatApp extends JFrame {
                     int offset = 0;
 
                     // Lần lượt gửi cho server từng buffer cho đến khi hết file
-                    *//*while (size > 0) {
+                    while (size > 0) {
                         writer.write(selectedFile, offset, Math.min(size, bufferSize));
                         offset += Math.min(size, bufferSize);
                         size -= bufferSize;
                     }
 
-                    writer.flush();*//*
+                    writer.flush();
 
                     bis.close();
 
@@ -255,38 +286,50 @@ public class ChatApp extends JFrame {
         return chatPanel;
     }
 
-    private String loadChatHistory(String selectedUser) {
-        // Replace this block with your logic to retrieve chat history with the selected user
-        // For demonstration, returning sample chat history as a placeholder
-        if (selectedUser.equals("User A")) {
-            return "User A: Hi\nYou: Hello!\n";
-        } else if (selectedUser.equals("User B")) {
-            return "User B: Hey there\nYou: How are you?\n";
-        }
-        // If no chat history found (replace with your logic)
-        return null;
-    }
 
-    private void sendMessage() {
+    private void sendMessage(String selectedUser) {
         try {
             String message = messageField.getText();
             if (!message.isEmpty()) {
-                displayMessage("You", message);
-                // Here, you would typically send the message to the server or process it further
+                displayMessage("You", message, selectedUser, true);
+                ChatHistory.saveChatHistory(username, selectedUser, message);
                 messageField.setText(""); // Clear the message field after sending
             }
-            writer.write("MESSAGE" + "\n");
+            writer.write("MESSAGE TO CLIENT" + "\n");
             writer.write(message);
+            writer.newLine();
+            writer.write(selectedUser);
+            writer.newLine();
+            writer.write(username);
             writer.newLine();
             writer.flush();
         } catch (IOException e) {
             e.printStackTrace();
-            displayMessage("ERROR", "Network error!");
         }
     }
 
-    public void displayMessage(String _from, String message) {
-        String formattedMessage = _from + ": " + message + "\n";
-        chatArea.append(formattedMessage);
+    public void displayMessage(String _from, String message, String recipient, Boolean yourMsg) {
+        String formattedMessage;
+        if(yourMsg) {
+            formattedMessage = _from + ": " + message + "\n";
+        } else {
+            formattedMessage = recipient + ": " + message + "\n";
+        }
+        tabChatArea = userChatAreas.get(recipient);
+        if (tabChatArea == null) {
+            // Create a new text area for the recipient
+            JTextArea newTextArea = new JTextArea();
+            newTextArea.setEditable(false);
+            userChatAreas.put(recipient, newTextArea);
+            tabChatArea = newTextArea;
+
+            // Create a new tab for the recipient if it doesn't exist
+            JPanel chatPanel = createChatPanel(recipient);
+            JPanel tabHeader = createTabHeader(recipient);
+            conversationsTabbedPane.addTab(recipient, chatPanel);
+            conversationsTabbedPane.setTabComponentAt(conversationsTabbedPane.indexOfTab(recipient), tabHeader);
+        }
+
+        tabChatArea.append(formattedMessage);
     }
 }

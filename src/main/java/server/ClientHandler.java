@@ -3,7 +3,6 @@ package server;
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 
 public class ClientHandler implements Runnable {
     private Socket socket;
@@ -37,9 +36,11 @@ public class ClientHandler implements Runnable {
                     case "LOGOUT":
                         handleLogout(writer);
                         break;
-                    case "MESSAGE":
+                    case "MESSAGE TO CLIENT":
                         String messageToSend = reader.readLine();
-                        broadcastMessage(messageToSend);
+                        String recipient = reader.readLine();
+                        String sender = reader.readLine();
+                        broadcastMessageToClient(sender, messageToSend, recipient);
                         break;
                 }
             } catch (IOException e) {
@@ -80,8 +81,6 @@ public class ClientHandler implements Runnable {
     private void handleLogout(BufferedWriter writer) throws IOException {
         writer.write("SAFE TO LEAVE" + "\n");
         writer.flush();
-        broadcastMessage(clientUsername + " has left the chat!");
-
         closeEverything(socket, reader, writer);
         isLoggedIn = false;
         Server.updateOnlineUsers();
@@ -96,6 +95,28 @@ public class ClientHandler implements Runnable {
                 if (!clientHandler.clientUsername.equals(clientUsername)) {
                     clientHandler.writer.write("MESSAGE" + "\n");
                     clientHandler.writer.write(clientUsername);
+                    clientHandler.writer.newLine();
+                    clientHandler.writer.write(messageToSend);
+                    clientHandler.writer.newLine();
+                    clientHandler.writer.flush();
+                }
+            } catch (IOException e) {
+                closeEverything(socket, reader, writer);
+            }
+        }
+    }
+
+    /*
+    Send the message to the recipient
+     */
+    public void broadcastMessageToClient(String sender, String messageToSend, String recipient) throws IOException {
+        for (ClientHandler clientHandler : Server.clientHandlers) {
+            try {
+                if (clientHandler.clientUsername.equals(recipient)) {
+                    clientHandler.writer.write("MESSAGE FROM CLIENT" + "\n");
+                    clientHandler.writer.write(sender);
+                    clientHandler.writer.newLine();
+                    clientHandler.writer.write(recipient);
                     clientHandler.writer.newLine();
                     clientHandler.writer.write(messageToSend);
                     clientHandler.writer.newLine();

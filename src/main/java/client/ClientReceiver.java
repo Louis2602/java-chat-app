@@ -27,7 +27,7 @@ public class ClientReceiver implements Runnable {
                     case "ONLINE USERS":
                         retrieveOnlineUsers();
                         break;
-                    case "MESSAGE":
+                    case "MESSAGE FROM CLIENT":
                         handleMessageFromClient();
                         break;
                     case "SAFE TO LEAVE":
@@ -40,8 +40,10 @@ public class ClientReceiver implements Runnable {
     }
     private void handleMessageFromClient() throws IOException {
         String sender =	reader.readLine();
+        String recipient =	reader.readLine();
         String message = reader.readLine();
-        chatApp.displayMessage(sender, message);
+        System.out.println(message);
+        chatApp.displayMessage(recipient, message, sender, false);
     }
     private void retrieveOnlineUsers() throws IOException {
         String users = reader.readLine();

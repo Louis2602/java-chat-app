@@ -101,10 +101,6 @@ public class Server {
         String username = reader.readLine();
         String password = reader.readLine();
 
-        System.out.println(username);
-        System.out.println(password);
-
-
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(ACCOUNTS_FILE, true))) {
             try (BufferedReader br = new BufferedReader(new FileReader(ACCOUNTS_FILE))) {
                 String line;
