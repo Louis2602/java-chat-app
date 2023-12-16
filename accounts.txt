@@ -1,3 +1,4 @@
-demo1:demo1
+demo:demo
 demo2:demo2
-test:test
+a:a
+s:s

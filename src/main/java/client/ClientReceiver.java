@@ -19,11 +19,16 @@ public class ClientReceiver implements Runnable {
         try {
             while (true) {
                 String request = reader.readLine();
-                System.out.println("[Client]: Request from client: " + request);
+                if (request == null)
+                    throw new IOException();
+                System.out.println("[Client]: Request from client " + chatApp.getUsername() + ": " + request);
 
                 switch (request) {
                     case "ONLINE USERS":
                         retrieveOnlineUsers();
+                        break;
+                    case "MESSAGE":
+                        handleMessageFromClient();
                         break;
                     case "SAFE TO LEAVE":
                         break;
@@ -32,6 +37,11 @@ public class ClientReceiver implements Runnable {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+    private void handleMessageFromClient() throws IOException {
+        String sender =	reader.readLine();
+        String message = reader.readLine();
+        chatApp.displayMessage(sender, message);
     }
     private void retrieveOnlineUsers() throws IOException {
         String users = reader.readLine();
@@ -45,27 +55,5 @@ public class ClientReceiver implements Runnable {
             model.addAll(onlineUsers);
             chatApp.updateOnlineUsersList(model);
         });
-
-        //onlineUsers.removeAllItems();
-
-        //String chatting = lbReceiver.getText();
-
-        //boolean isChattingOnline = false;
-
-       /* for (String user: users) {
-            if (user.equals(username) == false) {
-                // Cập nhật danh sách các người dùng trực tuyến vào ComboBox onlineUsers (trừ bản thân)
-                ChatApp.onlineUsersList.addItem(user);
-                if (chatWindows.get(user) == null) {
-                    JTextPane temp = new JTextPane();
-                    temp.setFont(new Font("Arial", Font.PLAIN, 14));
-                    temp.setEditable(false);
-                    chatWindows.put(user, temp);
-                }
-            }
-            if (chatting.equals(user)) {
-                isChattingOnline = true;
-            }
-        }*/
     }
 }

@@ -6,7 +6,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
 public class Server {
-    private static final int port = 8080;
+    public static final String address = "localhost";
+    public static final int port = 8080;
     public static final String ACCOUNTS_FILE = "accounts.txt";
 
     private ServerSocket serverSocket;
@@ -44,15 +45,15 @@ public class Server {
         }
     }
     public static void updateOnlineUsers() {
-        String message = "";
+        StringBuilder message = new StringBuilder();
         for (ClientHandler client : clientHandlers) {
-            if (client.getIsLoggedIn() == true) {
-                message += client.getUsername();
-                message += ",";
+            if (client.getIsLoggedIn()) {
+                message.append(client.getUsername());
+                message.append(",");
             }
         }
         for (ClientHandler client : clientHandlers) {
-            if (client.getIsLoggedIn() == true) {
+            if (client.getIsLoggedIn()) {
                 try {
                     client.getWriter().write("ONLINE USERS" + "\n");
                     client.getWriter().write(message + "\n");

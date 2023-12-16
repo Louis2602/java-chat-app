@@ -13,7 +13,7 @@ public class ClientHandler implements Runnable {
     private boolean isLoggedIn;
 
 
-    public ClientHandler(Socket socket) {
+    public ClientHandler(Socket socket) throws IOException {
         try {
             this.socket = socket;
             this.writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
@@ -32,20 +32,22 @@ public class ClientHandler implements Runnable {
                 request = reader.readLine();
                 if (request == null)
                     throw new IOException();
-                System.out.println("[ClientHandler]: Request from client: " + request);
-                //broadcastMessage(messageFromClient);
+                System.out.println("[ClientHandler]: Request from " + clientUsername + ": " + request);
                 switch (request) {
                     case "LOGOUT":
-                        writer.write("SAFE TO LEAVE" + "\n");
-                        writer.flush();
-
-                        closeEverything(socket, reader, writer);
-                        isLoggedIn = false;
-                        Server.updateOnlineUsers();
+                        handleLogout(writer);
+                        break;
+                    case "MESSAGE":
+                        String messageToSend = reader.readLine();
+                        broadcastMessage(messageToSend);
                         break;
                 }
             } catch (IOException e) {
-                closeEverything(socket, reader, writer);
+                try {
+                    closeEverything(socket, reader, writer);
+                } catch (IOException ex) {
+                    throw new RuntimeException(ex);
+                }
                 break;
             }
         }
@@ -54,15 +56,19 @@ public class ClientHandler implements Runnable {
     public BufferedWriter getWriter() {
         return this.writer;
     }
+
     public BufferedReader getReader() {
         return this.reader;
     }
+
     public String getUsername() {
         return this.clientUsername;
     }
+
     public void setUsername(String username) {
         this.clientUsername = username;
     }
+
     public void setIsLoggedIn(boolean isLoggedIn) {
         this.isLoggedIn = isLoggedIn;
     }
@@ -71,17 +77,26 @@ public class ClientHandler implements Runnable {
         return this.isLoggedIn;
     }
 
-    private void handleLogout() {
+    private void handleLogout(BufferedWriter writer) throws IOException {
+        writer.write("SAFE TO LEAVE" + "\n");
+        writer.flush();
+        broadcastMessage(clientUsername + " has left the chat!");
+
         closeEverything(socket, reader, writer);
+        isLoggedIn = false;
+        Server.updateOnlineUsers();
     }
 
     /*
     Send the message to all the clients in a group chat, except the one who send
      */
-  /*  public void broadcastMessage(String messageToSend) {
-        for (ClientHandler clientHandler : clientHandlers) {
+    public void broadcastMessage(String messageToSend) throws IOException {
+        for (ClientHandler clientHandler : Server.clientHandlers) {
             try {
                 if (!clientHandler.clientUsername.equals(clientUsername)) {
+                    clientHandler.writer.write("MESSAGE" + "\n");
+                    clientHandler.writer.write(clientUsername);
+                    clientHandler.writer.newLine();
                     clientHandler.writer.write(messageToSend);
                     clientHandler.writer.newLine();
                     clientHandler.writer.flush();
@@ -90,14 +105,13 @@ public class ClientHandler implements Runnable {
                 closeEverything(socket, reader, writer);
             }
         }
-    }*/
-
-    public void removeClientHandler() {
-        Server.clientHandlers.remove(this);
-        //broadcastMessage(clientUsername + " has left the chat!");
     }
 
-    public void closeEverything(Socket socket, BufferedReader reader, BufferedWriter writer) {
+    public void removeClientHandler()  {
+        Server.clientHandlers.remove(this);
+    }
+
+    public void closeEverything(Socket socket, BufferedReader reader, BufferedWriter writer) throws IOException {
         removeClientHandler();
         try {
             if (reader != null) {
