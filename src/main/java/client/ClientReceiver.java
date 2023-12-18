@@ -1,9 +1,7 @@
 package client;
 
 import javax.swing.*;
-import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -46,22 +44,21 @@ public class ClientReceiver implements Runnable {
     }
 
     private void handleFileFromClient() throws IOException {
-        // Nhận một file
         String sender = reader.readLine();
         String filename = reader.readLine();
         int size = Integer.parseInt(reader.readLine());
-        int bufferSize = 2048;
+        System.out.println("Receive file " + filename + " with size: " + size + " from " + sender);
+
+        int bufferSize = 1000000; // 1mb
         byte[] buffer = new byte[bufferSize];
         ByteArrayOutputStream file = new ByteArrayOutputStream();
-
-        while (size > 0) {
-            reader.read(Arrays.toString(buffer).toCharArray(), 0, Math.min(bufferSize, size));
-            file.write(buffer, 0, Math.min(bufferSize, size));
-            size -= bufferSize;
+        InputStream in = this.chatApp.socket.getInputStream();
+        int bytesRead;
+        while ((bytesRead = in.read(buffer, 0, Math.min(bufferSize, size))) != -1 && size > 0) {
+            file.write(buffer, 0, bytesRead);
+            size -= bytesRead;
         }
-
-        // In ra màn hình file đó
-        //chatApp.displayFile(sender, filename, file.toByteArray(), false);
+        chatApp.displayFile(sender, filename, file.toByteArray(), false);
     }
 
     private void handleMessageFromClient() throws IOException {
@@ -83,13 +80,13 @@ public class ClientReceiver implements Runnable {
             chatApp.updateOnlineUsersList(model);
         });
         for (String user : onlineUsers) {
-            if(!user.equals(chatApp.getUsername())) {
-                if(chatApp.userChatAreas.get(user) == null) {
+            if (!user.equals(chatApp.getUsername())) {
+                if (chatApp.userChatPanes.get(user) == null) {
                     System.out.println("CREATING CHAT AREA FOR ALL ONLINE USERS...");
                     System.out.println("USER: " + user);
-                    JTextArea tabChatArea = new JTextArea();
-                    tabChatArea.setEditable(false);
-                    chatApp.userChatAreas.put(user, tabChatArea);
+                    JTextPane userChatPane = new JTextPane();
+                    userChatPane.setEditable(false);
+                    chatApp.userChatPanes.put(user, userChatPane);
                 }
             }
         }

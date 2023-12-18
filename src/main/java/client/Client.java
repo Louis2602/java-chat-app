@@ -161,7 +161,7 @@ public class Client extends JFrame {
     private void openChatApp() {
         SwingUtilities.invokeLater(() -> {
             String username = usernameField.getText();
-            ChatApp chatApp = new ChatApp(username, reader, writer);
+            ChatApp chatApp = new ChatApp(username, socket, reader, writer);
             chatApp.setVisible(true);
 
             // Centering the frame on screen

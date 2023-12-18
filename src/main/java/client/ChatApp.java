@@ -3,13 +3,18 @@ package client;
 import server.Server;
 
 import javax.swing.*;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Map;
+import javax.swing.text.*;
+
 
 public class ChatApp extends JFrame {
     private JList<String> onlineUsersList;
@@ -22,14 +27,17 @@ public class ChatApp extends JFrame {
     private BufferedWriter writer;
     Thread clientReceiver;
     private JTabbedPane conversationsTabbedPane;
-    public JTextArea tabChatArea;
+    public JTextPane tabChatPane;
     JScrollPane chatScrollPane;
+    StyledDocument doc;
+    Socket socket;
 
-    public HashMap<String, JTextArea> userChatAreas = new HashMap<>();
 
+    public HashMap<String, JTextPane> userChatPanes = new HashMap<>();
 
-    public ChatApp(String username, BufferedReader reader, BufferedWriter writer) {
+    public ChatApp(String username, Socket socket, BufferedReader reader, BufferedWriter writer) {
         this.username = username;
+        this.socket = socket;
         this.writer = writer;
         this.reader = reader;
         clientReceiver = new Thread(new ClientReceiver(reader, this));
@@ -94,11 +102,11 @@ public class ChatApp extends JFrame {
         topPanel.add(onlineUsersPanel, BorderLayout.CENTER);
 
         // Chat area for current user
-        tabChatArea = new JTextArea();
-        tabChatArea.setEditable(false);
-        userChatAreas.put(this.username, tabChatArea);
+        tabChatPane = new JTextPane();
+        tabChatPane.setEditable(false);
+        userChatPanes.put(this.username, tabChatPane);
         chatScrollPane = new JScrollPane();
-        chatScrollPane.setViewportView(tabChatArea);
+        chatScrollPane.setViewportView(tabChatPane);
 
         splitPane.setTopComponent(topPanel);
 
@@ -230,11 +238,11 @@ public class ChatApp extends JFrame {
     private JPanel createChatPanel(String selectedUser) {
         JPanel chatPanel = new JPanel(new BorderLayout());
 
-        if (tabChatArea != userChatAreas.get(selectedUser)) {
-            tabChatArea = userChatAreas.get(selectedUser);
+        if (tabChatPane != userChatPanes.get(selectedUser)) {
+            tabChatPane = userChatPanes.get(selectedUser);
 
         }
-        chatScrollPane.setViewportView(tabChatArea);
+        chatScrollPane.setViewportView(tabChatPane);
         chatScrollPane.validate();
         chatPanel.add(chatScrollPane, BorderLayout.CENTER);
 
@@ -254,40 +262,46 @@ public class ChatApp extends JFrame {
 
         // handle file
         uploadButton.addActionListener(e -> {
-            JFileChooser fileChooser = new JFileChooser();
-            int rVal = fileChooser.showOpenDialog(chatPanel.getParent());
-            if (rVal == JFileChooser.APPROVE_OPTION) {
-                byte[] selectedFile = new byte[(int) fileChooser.getSelectedFile().length()];
+            JFileChooser jfc = new JFileChooser();
+            jfc.setDialogTitle("Chọn file để gửi");
+            int result = jfc.showDialog(null, "Chọn file");
+            if (result == JFileChooser.APPROVE_OPTION) {
+                String fileName = jfc.getSelectedFile().getName();
+                String filePath = jfc.getSelectedFile().getAbsolutePath();
+                byte[] selectedFile = new byte[(int) jfc.getSelectedFile().length()];
                 BufferedInputStream bis;
+
+                File file = new File(filePath);
                 try {
-                    bis = new BufferedInputStream(new FileInputStream(fileChooser.getSelectedFile()));
-                    // Đọc file vào biến selectedFile
+                    bis = new BufferedInputStream(new FileInputStream(jfc.getSelectedFile()));
                     bis.read(selectedFile, 0, selectedFile.length);
+
+                    System.out.println("Send file " + fileName + " to user: " + selectedUser);
 
                     writer.write("FILE" + "\n");
                     writer.write(recipient);
                     writer.newLine();
-                    writer.write(fileChooser.getSelectedFile().getName());
+                    writer.write(fileName);
                     writer.newLine();
-                    writer.write(String.valueOf(selectedFile.length));
+                    writer.write(String.valueOf(file.length()));
                     writer.newLine();
+                    writer.flush();
 
-                    int size = selectedFile.length;
-                    int bufferSize = 2048;
-                    int offset = 0;
+                    // Send the file content
+                    int bufferSize = 1000000;
+                    byte[] buffer = new byte[bufferSize];
+                    InputStream in = new FileInputStream(file);
+                    OutputStream out = socket.getOutputStream();
 
-                    // Lần lượt gửi cho server từng buffer cho đến khi hết file
-                    while (size > 0) {
-                        writer.write(Arrays.toString(selectedFile), offset, Math.min(size, bufferSize));
-                        offset += Math.min(size, bufferSize);
-                        size -= bufferSize;
+                    int count;
+                    while ((count = in.read(buffer)) > 0) {
+                        out.write(buffer, 0, count);
                     }
 
-                    writer.flush();
-                    bis.close();
+                    in.close();
+                    out.flush();
 
-                    // In ra màn hình file
-                    //displayFile(username, fileChooser.getSelectedFile().getName(), selectedFile, true);
+                    displayFile(username, fileName, selectedFile, true);
                 } catch (IOException e1) {
                     e1.printStackTrace();
                 }
@@ -317,66 +331,73 @@ public class ChatApp extends JFrame {
         }
     }
 
-    public void displayMessage(String sender, String message, Boolean yourMsg) {
-        String formattedMessage;
-        if (yourMsg) {
-            formattedMessage = "You: " + message + "\n";
-        } else {
-            formattedMessage = sender + ": " + message + "\n";
-        }
-
+    public void displayMessage(String sender, String message, Boolean yourMessage) {
         if (sender.equals(this.username)) {
-            System.out.println("SEND");
-            tabChatArea = userChatAreas.get(recipient);
+            doc = userChatPanes.get(recipient).getStyledDocument();
         } else {
-            System.out.println("RECEIVE");
-            tabChatArea = userChatAreas.get(sender);
+            doc = userChatPanes.get(sender).getStyledDocument();
         }
-        System.out.println(formattedMessage);
-        System.out.println(tabChatArea);
-        tabChatArea.append(formattedMessage);
-
-
-    }
-
-    /*public void displayFile(String username, String filename, byte[] file, Boolean yourMsg) {
-        tabChatArea = userChatAreas.get(recipient);
-        if (tabChatArea == null) {
-            // Create a new text area for the recipient
-            JTextArea newTextArea = new JTextArea();
-            newTextArea.setEditable(false);
-            userChatAreas.put(recipient, newTextArea);
-            tabChatArea = newTextArea;
-
-            // Create a new tab for the recipient if it doesn't exist
-            JPanel chatPanel = createChatPanel(recipient);
-            JPanel tabHeader = createTabHeader(recipient);
-            conversationsTabbedPane.addTab(recipient, chatPanel);
-            conversationsTabbedPane.setTabComponentAt(conversationsTabbedPane.indexOfTab(recipient), tabHeader);
-        }
-
-
-        if (username.equals(this.username)) {
-            window = lbReceiver.getText();
-        } else {
-            window = username;
-        }
-        doc = chatWindows.get(window).getStyledDocument();
-
         Style userStyle = doc.getStyle("User style");
+
         if (userStyle == null) {
             userStyle = doc.addStyle("User style", null);
             StyleConstants.setBold(userStyle, true);
         }
 
-        if (yourMsg) {
+        if (yourMessage) {
+            StyleConstants.setForeground(userStyle, Color.red);
+        } else {
+            StyleConstants.setForeground(userStyle, Color.BLUE);
+        }
+
+        // In ra tên người gửi
+        try {
+            if (yourMessage) {
+                doc.insertString(doc.getLength(), "You: ", userStyle);
+            } else {
+                doc.insertString(doc.getLength(), sender + ": ", userStyle);
+            }
+        } catch (BadLocationException e) {
+            e.printStackTrace();
+        }
+
+        Style messageStyle = doc.getStyle("Message style");
+        if (messageStyle == null) {
+            messageStyle = doc.addStyle("Message style", null);
+            StyleConstants.setForeground(messageStyle, Color.BLACK);
+            StyleConstants.setBold(messageStyle, false);
+        }
+
+        // In ra nội dung tin nhắn
+        try {
+            doc.insertString(doc.getLength(), message + "\n", messageStyle);
+        } catch (BadLocationException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void displayFile(String sender, String filename, byte[] file, Boolean yourMessage) {
+        String window = null;
+        if (sender.equals(this.username)) {
+            window = recipient;
+        } else {
+            window = sender;
+        }
+        doc = userChatPanes.get(window).getStyledDocument();
+        Style userStyle = doc.getStyle("User style");
+
+        if (userStyle == null) {
+            userStyle = doc.addStyle("User style", null);
+            StyleConstants.setBold(userStyle, true);
+        }
+        if (yourMessage) {
             StyleConstants.setForeground(userStyle, Color.red);
         } else {
             StyleConstants.setForeground(userStyle, Color.BLUE);
         }
 
         try {
-            doc.insertString(doc.getLength(), username + ": ", userStyle);
+            doc.insertString(doc.getLength(), sender + ": ", userStyle);
         } catch (BadLocationException e) {
         }
 
@@ -389,13 +410,12 @@ public class ChatApp extends JFrame {
             linkStyle.addAttribute("link", new HyberlinkListener(filename, file));
         }
 
-        if (chatWindows.get(window).getMouseListeners() != null) {
+        if (userChatPanes.get(window).getMouseListeners() != null) {
             // Tạo MouseListener cho các đường dẫn tải về file
-            chatWindows.get(window).addMouseListener(new MouseListener() {
-
+            userChatPanes.get(window).addMouseListener(new MouseListener() {
                 @Override
                 public void mouseClicked(MouseEvent e) {
-                    Element ele = doc.getCharacterElement(chatWindow.viewToModel(e.getPoint()));
+                    Element ele = doc.getCharacterElement(tabChatPane.viewToModel(e.getPoint()));
                     AttributeSet as = ele.getAttributes();
                     HyberlinkListener listener = (HyberlinkListener) as.getAttribute("link");
                     if (listener != null) {
@@ -405,26 +425,21 @@ public class ChatApp extends JFrame {
 
                 @Override
                 public void mousePressed(MouseEvent e) {
-                    // TODO Auto-generated method stub
 
                 }
 
                 @Override
                 public void mouseReleased(MouseEvent e) {
-                    // TODO Auto-generated method stub
 
                 }
 
                 @Override
                 public void mouseEntered(MouseEvent e) {
-                    // TODO Auto-generated method stub
 
                 }
 
                 @Override
                 public void mouseExited(MouseEvent e) {
-                    // TODO Auto-generated method stub
-
                 }
 
             });
@@ -443,6 +458,57 @@ public class ChatApp extends JFrame {
         } catch (BadLocationException e1) {
             e1.printStackTrace();
         }
+    }
+    class HyberlinkListener extends AbstractAction {
+        String filename;
+        byte[] file;
 
-    }*/
+        public HyberlinkListener(String filename, byte[] file) {
+            this.filename = filename;
+            this.file = Arrays.copyOf(file, file.length);
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            execute();
+        }
+
+        public void execute() {
+            JFileChooser fileChooser = new JFileChooser();
+            fileChooser.setSelectedFile(new File(filename));
+            int rVal = fileChooser.showSaveDialog(tabChatPane.getParent());
+            if (rVal == JFileChooser.APPROVE_OPTION) {
+
+                // Mở file đã chọn sau đó lưu thông tin xuống file đó
+                File saveFile = fileChooser.getSelectedFile();
+                BufferedOutputStream bos = null;
+                try {
+                    bos = new BufferedOutputStream(new FileOutputStream(saveFile));
+                } catch (FileNotFoundException e) {
+                    e.printStackTrace();
+                }
+
+                // Hiển thị JOptionPane cho người dùng có muốn mở file vừa tải về không
+                int nextAction = JOptionPane.showConfirmDialog(null, "Saved file to " + saveFile.getAbsolutePath() + "\nDo you want to open this file?", "Successful", JOptionPane.YES_NO_OPTION);
+                if (nextAction == JOptionPane.YES_OPTION) {
+                    try {
+                        Desktop.getDesktop().open(saveFile);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                if (bos != null) {
+                    try {
+                        bos.write(this.file);
+                        bos.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }
+    }
 }
+
+

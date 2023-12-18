@@ -133,9 +133,25 @@ public class ClientHandler implements Runnable {
         String recipient = reader.readLine();
         String filename = reader.readLine();
         int size = Integer.parseInt(reader.readLine());
-        int bufferSize = 2048;
-        byte[] buffer = new byte[bufferSize];
+        System.out.println("[FILE]: " + filename + " with size: " + size + " is sent to " + recipient);
+        int bufferSize = 1000000;
 
+        byte[] buffer = new byte[bufferSize];
+        File file = new File(filename);
+        InputStream in = this.socket.getInputStream();
+        OutputStream out = new FileOutputStream(file);
+
+        int receivedSize = 0;
+        int count;
+        while ((count = in.read(buffer)) > 0) {
+            System.out.write(buffer, 0, count);
+            out.write(buffer, 0, count);
+            receivedSize += count;
+            if (receivedSize >= size)
+                break;
+        }
+
+        out.close();
         for (ClientHandler client : Server.clientHandlers) {
             if (client.getUsername().equals(recipient)) {
                 client.writer.write("FILE" + "\n");
@@ -145,16 +161,19 @@ public class ClientHandler implements Runnable {
                 client.writer.newLine();
                 client.writer.write(String.valueOf(size));
                 client.writer.newLine();
-
-                while (size > 0) {
-                    // Gửi lần lượt từng buffer cho người nhận cho đến khi hết file
-                    reader.read(Arrays.toString(buffer).toCharArray(), 0, Math.min(size, bufferSize));
-                    client.writer.write(Arrays.toString(buffer), 0, Math.min(size, bufferSize));
-                    client.writer.newLine();
-                    size -= bufferSize;
-                }
                 client.writer.flush();
-                break;
+
+                // Send the file content
+                FileInputStream fileInputStream = new FileInputStream(file);
+                OutputStream clientOutputStream = client.socket.getOutputStream();
+
+                while ((count = fileInputStream.read(buffer)) > 0) {
+                    clientOutputStream.write(buffer, 0, count);
+                }
+
+                // Clean up resources
+                fileInputStream.close();
+                clientOutputStream.flush();
             }
         }
     }
