@@ -3,6 +3,7 @@ package server;
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 public class ClientHandler implements Runnable {
     private Socket socket;
@@ -36,11 +37,11 @@ public class ClientHandler implements Runnable {
                     case "LOGOUT":
                         handleLogout(writer);
                         break;
-                    case "MESSAGE TO CLIENT":
-                        String messageToSend = reader.readLine();
-                        String recipient = reader.readLine();
-                        String sender = reader.readLine();
-                        broadcastMessageToClient(sender, messageToSend, recipient);
+                    case "MESSAGE":
+                        broadcastMessageToClient();
+                        break;
+                    case "FILE":
+                        handleReceiveFile();
                         break;
                 }
             } catch (IOException e) {
@@ -109,14 +110,14 @@ public class ClientHandler implements Runnable {
     /*
     Send the message to the recipient
      */
-    public void broadcastMessageToClient(String sender, String messageToSend, String recipient) throws IOException {
+    public void broadcastMessageToClient() throws IOException {
+        String messageToSend = reader.readLine();
+        String recipient = reader.readLine();
         for (ClientHandler clientHandler : Server.clientHandlers) {
             try {
                 if (clientHandler.clientUsername.equals(recipient)) {
-                    clientHandler.writer.write("MESSAGE FROM CLIENT" + "\n");
-                    clientHandler.writer.write(sender);
-                    clientHandler.writer.newLine();
-                    clientHandler.writer.write(recipient);
+                    clientHandler.writer.write("MESSAGE" + "\n");
+                    clientHandler.writer.write(this.clientUsername); // sender
                     clientHandler.writer.newLine();
                     clientHandler.writer.write(messageToSend);
                     clientHandler.writer.newLine();
@@ -128,7 +129,37 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    public void removeClientHandler()  {
+    public void handleReceiveFile() throws IOException {
+        String recipient = reader.readLine();
+        String filename = reader.readLine();
+        int size = Integer.parseInt(reader.readLine());
+        int bufferSize = 2048;
+        byte[] buffer = new byte[bufferSize];
+
+        for (ClientHandler client : Server.clientHandlers) {
+            if (client.getUsername().equals(recipient)) {
+                client.writer.write("FILE" + "\n");
+                client.writer.write(this.clientUsername);
+                client.writer.newLine();
+                client.writer.write(filename);
+                client.writer.newLine();
+                client.writer.write(String.valueOf(size));
+                client.writer.newLine();
+
+                while (size > 0) {
+                    // Gửi lần lượt từng buffer cho người nhận cho đến khi hết file
+                    reader.read(Arrays.toString(buffer).toCharArray(), 0, Math.min(size, bufferSize));
+                    client.writer.write(Arrays.toString(buffer), 0, Math.min(size, bufferSize));
+                    client.writer.newLine();
+                    size -= bufferSize;
+                }
+                client.writer.flush();
+                break;
+            }
+        }
+    }
+
+    public void removeClientHandler() {
         Server.clientHandlers.remove(this);
     }
 
