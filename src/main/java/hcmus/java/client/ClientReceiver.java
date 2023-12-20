@@ -28,8 +28,14 @@ public class ClientReceiver implements Runnable {
                     case "ONLINE USERS":
                         retrieveOnlineUsers();
                         break;
+                    case "GROUPS":
+                        retrieveGroupUsers();
+                        break;
                     case "MESSAGE":
                         handleMessageFromClient();
+                        break;
+                    case "USERS IN GROUP":
+                        retrieveUsersInGroup();
                         break;
                     case "FILE":
                         handleFileFromClient();
@@ -46,6 +52,7 @@ public class ClientReceiver implements Runnable {
     private void handleFileFromClient() throws IOException {
         String sender = reader.readLine();
         String filename = reader.readLine();
+
         int size = Integer.parseInt(reader.readLine());
         System.out.println("Receive file " + filename + " with size: " + size + " from " + sender);
 
@@ -90,5 +97,43 @@ public class ClientReceiver implements Runnable {
                 }
             }
         }
+    }
+
+    private void retrieveUsersInGroup() throws IOException {
+        String usersInGroup = reader.readLine();
+        usersInGroup = usersInGroup.substring(1, usersInGroup.length() - 1); // Remove the square brackets
+        String[] userArray = usersInGroup.split(", "); // Split the string by ", "
+        List<String> userList = Arrays.asList(userArray);
+
+        SwingUtilities.invokeLater(() -> {
+            DefaultListModel<String> model = new DefaultListModel<>();
+            model.addAll(userList);
+            chatApp.updateListUsersInGroup(model);
+        });
+    }
+
+    private void retrieveGroupUsers() throws IOException {
+        String groups = reader.readLine();
+
+        String[] groupArray = groups.split(",");
+        List<String> userGroups = new ArrayList<>(Arrays.asList(groupArray));
+
+        SwingUtilities.invokeLater(() -> {
+            DefaultListModel<String> model = new DefaultListModel<>();
+            model.addAll(userGroups);
+            chatApp.updateUserGroupsList(model);
+        });
+
+        /*for (String group : userGroups) {
+            if (!group.equals(chatApp.getUsername())) {
+                if (chatApp.userChatPanes.get(user) == null) {
+                    System.out.println("CREATING CHAT AREA FOR ALL ONLINE USERS...");
+                    System.out.println("USER: " + user);
+                    JTextPane userChatPane = new JTextPane();
+                    userChatPane.setEditable(false);
+                    chatApp.userChatPanes.put(user, userChatPane);
+                }
+            }
+        }*/
     }
 }

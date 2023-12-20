@@ -1,6 +1,7 @@
 package hcmus.java.client;
 
-import server.Server;
+import hcmus.java.server.ClientHandler;
+import hcmus.java.server.Server;
 
 import javax.swing.*;
 import javax.swing.text.*;
@@ -8,7 +9,9 @@ import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
 import java.net.Socket;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
 
@@ -23,8 +26,9 @@ public class ChatApp extends JFrame {
     private JList<String> onlineUsersList;
     private JList<String> groupsList;
     private JTextField messageField;
-    private JList<String> currentChatUsersList;
+    private JList<String> listUsersInGroup;
     private String username;
+    private String groupName;
     private String recipient = "";
     private BufferedReader reader;
     private BufferedWriter writer;
@@ -45,8 +49,22 @@ public class ChatApp extends JFrame {
         onlineUsersList.setModel(model);
     }
 
+    public void updateUserGroupsList(DefaultListModel<String> model) {
+        groupsList.setModel(model);
+    }
+
+    public void updateListUsersInGroup(DefaultListModel<String> model) {
+        listUsersInGroup.setModel(model);
+    }
+
     public String getUsername() {
         return this.username;
+    }
+
+    private void updateListUsersInSelectedGroup(String selectedGroup) throws IOException {
+        writer.write("GET USERS IN GROUP\n");
+        writer.write(selectedGroup + "\n");
+        writer.flush();
     }
 
     private void createChatFrame() {
@@ -109,6 +127,25 @@ public class ChatApp extends JFrame {
 
         groupsList = new JList<>();
         JScrollPane groupsScrollPane = new JScrollPane(groupsList);
+        groupsList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) { // Detect a double-click
+                    JList<String> list = (JList<String>) e.getSource();
+                    int index = list.locationToIndex(e.getPoint()); // Get the index of the clicked item
+                    if (index >= 0) {
+                        String selectedGroup = list.getModel().getElementAt(index);
+                        // Fetch users in the selected group and update the listUsersInGroup
+                        try {
+                            updateListUsersInSelectedGroup(selectedGroup);
+                        } catch (IOException ex) {
+                            throw new RuntimeException(ex);
+                        }
+                    }
+                }
+            }
+        });
+
         JButton createGroupButton = new JButton("Create Group");
         createGroupButton.addActionListener(e -> {
             // Create a dialog
@@ -144,8 +181,8 @@ public class ChatApp extends JFrame {
                             JOptionPane.WARNING_MESSAGE);
                     return;
                 }
-                System.out.println("Group Name: " + groupName);
                 List<String> selectedUsers = usersList.getSelectedValuesList();
+                selectedUsers.add(this.username);
                 try {
                     writer.write("CREATE GROUP\n");
                     writer.write(groupName);
@@ -155,10 +192,6 @@ public class ChatApp extends JFrame {
                     writer.flush();
                 } catch (IOException ex) {
                     throw new RuntimeException(ex);
-                }
-
-                for (String selectedUser : selectedUsers) {
-                    System.out.println(selectedUser);
                 }
 
                 dialog.dispose(); // Close the dialog after processing
@@ -191,9 +224,9 @@ public class ChatApp extends JFrame {
 
         JPanel rightPanel = createPanelWithBorderLayout("Current users in Room");
         rightPanel.setLayout(new GridBagLayout());
-        currentChatUsersList = new JList<>(new String[]{"User A", "User B", "User C"}); // Sample data for current chat users
+        listUsersInGroup = new JList<>();
 
-        JScrollPane currentChatUsersScrollPane = new JScrollPane(currentChatUsersList);
+        JScrollPane currentChatUsersScrollPane = new JScrollPane(listUsersInGroup);
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.gridx = 0;
         gbc.gridy = 0;
@@ -265,11 +298,64 @@ public class ChatApp extends JFrame {
 
         // Select the tab for the selected user
         conversationsTabbedPane.setSelectedIndex(tabIndex);
-       /* String chatHistory = ChatHistory.loadChatHistory(username, selectedUser); // Load chat history
-        JTextArea chatTextArea = userChatAreas.get(selectedUser);
-        if (chatTextArea != null && chatHistory != null && !chatHistory.isEmpty()) {
-            chatTextArea.append(chatHistory); // Display loaded chat history
-        }*/
+        String chatHistory = ChatHistory.loadChatHistory(username, selectedUser); // Load chat history
+        tabChatPane = userChatPanes.get(selectedUser);
+        if (tabChatPane != null && chatHistory != null && !chatHistory.isEmpty()) {
+            String[] lines = chatHistory.split("\n"); // Split the history into individual lines
+
+            for (String line : lines) {
+                String[] parts = line.split(": ", 2); // Split into sender and message parts
+                String sender = parts[0];
+                String message = parts[1];
+                // If it is file
+                if (message.startsWith("<") && message.endsWith(">")) {
+                    String formattedFileName = message.substring(1, message.length() - 1); // Extract filename
+
+                    String[] fileParts = formattedFileName.split("\\.", 2);
+                    String fileNamePrefix = fileParts[0];
+                    String realFileName = fileNamePrefix.split("_")[0];
+                    String fileExt = fileParts[1];
+                    String filename = realFileName + "." + fileExt;
+
+                    // Read data back from files folder
+                    try {
+                        String saveFileName = "files/" + formattedFileName;
+                        File file = new File(saveFileName);
+                        ByteArrayOutputStream byteArray = new ByteArrayOutputStream();
+
+                        if (file.exists()) {
+                            FileInputStream inputStream = new FileInputStream(file);
+
+                            byte[] buffer = new byte[(int) file.length()];
+                            int bytesRead;
+                            // Read file content into the buffer
+                            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                                byteArray.write(buffer, 0, bytesRead);
+                            }
+
+                            inputStream.close();
+                        } else {
+                            System.out.println("File does not exist!");
+                        }
+
+                        // Display file entry using displayFile method
+                        if (sender.equals(this.username)) {
+                            displayFile(sender, filename, byteArray.toByteArray(), true);
+                        } else {
+                            displayFile(sender, filename, byteArray.toByteArray(), false);
+                        }
+                    } catch (IOException ioe) {
+                        ioe.printStackTrace();
+                    }
+                } else {
+                    if (sender.equals(this.username)) {
+                        displayMessage(sender, message, true);
+                    } else {
+                        displayMessage(sender, message, false);
+                    }
+                }
+            }
+        }
     }
 
     private JPanel createTabHeader(String selectedUser) {
@@ -339,11 +425,17 @@ public class ChatApp extends JFrame {
                     bis.read(selectedFile, 0, selectedFile.length);
 
                     System.out.println("Send file " + fileName + " to user: " + selectedUser);
+                    String[] fileParts = fileName.split("\\.", 2);
+                    String fileNamePrefix = fileParts[0];
+                    String fileExt = fileParts[1];
+                    String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(Calendar.getInstance().getTime());
+                    String formattedFileName = fileNamePrefix + "_" + timeStamp + "." + fileExt;
+                    ChatHistory.saveChatHistory(username, selectedUser, "<" + formattedFileName + ">");
 
                     writer.write("FILE" + "\n");
                     writer.write(recipient);
                     writer.newLine();
-                    writer.write(fileName);
+                    writer.write(formattedFileName);
                     writer.newLine();
                     writer.write(String.valueOf(file.length()));
                     writer.newLine();
@@ -459,7 +551,11 @@ public class ChatApp extends JFrame {
         }
 
         try {
-            doc.insertString(doc.getLength(), sender + ": ", userStyle);
+            if (yourMessage) {
+                doc.insertString(doc.getLength(), "You: ", userStyle);
+            } else {
+                doc.insertString(doc.getLength(), sender + ": ", userStyle);
+            }
         } catch (BadLocationException e) {
         }
 

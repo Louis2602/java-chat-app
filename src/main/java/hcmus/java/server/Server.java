@@ -5,6 +5,7 @@ import java.lang.reflect.Array;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.List;
 
 public class Server {
     public static final String address = "localhost";
@@ -46,6 +47,7 @@ public class Server {
             e.printStackTrace();
         }
     }
+
     public static void updateOnlineUsers() {
         StringBuilder message = new StringBuilder();
         for (ClientHandler client : clientHandlers) {
@@ -66,6 +68,34 @@ public class Server {
             }
         }
     }
+
+    public static void updateGroups() {
+        StringBuilder message = new StringBuilder();
+        //String usersInGroup;
+        for (ClientHandler client : clientHandlers) {
+            message.setLength(0);
+            //usersInGroup = null;
+            if (client.getIsLoggedIn()) {
+                try {
+                    for (Integer groupId : client.groupIds) {
+                        Group group = Group.findGroup(groups, groupId);
+                        assert group != null;
+                        message.append(group.name);
+                        message.append(",");
+                        //usersInGroup = String.valueOf(group.users);
+                    }
+                    client.getWriter().write("GROUPS" + "\n");
+                    client.getWriter().write(message + "\n");
+                    //client.getWriter().write(usersInGroup + "\n");
+                    client.getWriter().flush();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+
     private void handleLogin(Socket socket, BufferedReader reader, BufferedWriter writer) throws IOException {
         String username = reader.readLine();
         String password = reader.readLine();

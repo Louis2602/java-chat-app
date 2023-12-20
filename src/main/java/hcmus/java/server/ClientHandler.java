@@ -3,7 +3,11 @@ package hcmus.java.server;
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
+import java.util.List;
 
 public class ClientHandler implements Runnable {
     private Socket socket;
@@ -11,6 +15,7 @@ public class ClientHandler implements Runnable {
     private BufferedWriter writer;
     private String clientUsername;
     private boolean isLoggedIn;
+    public List<Integer> groupIds = new ArrayList<>();
 
 
     public ClientHandler(Socket socket) throws IOException {
@@ -42,6 +47,9 @@ public class ClientHandler implements Runnable {
                         break;
                     case "CREATE GROUP":
                         handleCreateGroupChat();
+                        break;
+                    case "GET USERS IN GROUP":
+                        getUsersInGroup();
                         break;
                     case "FILE":
                         handleReceiveFile();
@@ -92,7 +100,36 @@ public class ClientHandler implements Runnable {
     private void handleCreateGroupChat() throws IOException {
         String groupName = reader.readLine();
         String listUsers = reader.readLine();
+        String[] userListArray = listUsers.substring(1, listUsers.length() - 1).split(", ");
+        List<String> userList = new ArrayList<>(Arrays.asList(userListArray));
+        Group newGroup = new Group(groupName, userList);
+        Server.groups.add(newGroup);
+        for(ClientHandler clientHandler : Server.clientHandlers) {
+            for(String user: userList) {
+                if(clientHandler.getUsername().equals(user)) {
+                    clientHandler.groupIds.add(newGroup.id);
+                    break;
+                }
+            }
+        }
+        Server.updateGroups();
+    }
+    public void getUsersInGroup() throws IOException {
+        String groupName = reader.readLine();
+        System.out.println("SERVER: " + groupName);
+        System.out.println(Server.groups.size());
+        String usersInGroup;
 
+        for(Group group : Server.groups) {
+            System.out.println(group.name);
+            if(group.name.equals(groupName)) {
+                usersInGroup = String.valueOf(group.users);
+                writer.write("USERS IN GROUP\n");
+                writer.write(usersInGroup + "\n");
+                writer.flush();
+                break;
+            }
+        }
     }
     /*
     Send the message to all the clients in a group chat, except the one who send
@@ -138,20 +175,26 @@ public class ClientHandler implements Runnable {
 
     public void handleReceiveFile() throws IOException {
         String recipient = reader.readLine();
-        String filename = reader.readLine();
+        String formattedFileName = reader.readLine();
         int size = Integer.parseInt(reader.readLine());
-        System.out.println("[FILE]: " + filename + " with size: " + size + " is sent to " + recipient);
+        System.out.println("[FILE]: " + formattedFileName + " with size: " + size + " is sent to " + recipient);
         int bufferSize = 1000000;
 
+        // create temporary files folder to store files in a session chat
+        File filesFolder = new File("files");
+        if (!filesFolder.exists())
+            filesFolder.mkdir();
+
+        String saveFileName = "files/" + formattedFileName;
+        File file = new File(saveFileName);
+
         byte[] buffer = new byte[bufferSize];
-        File file = new File(filename);
         InputStream in = this.socket.getInputStream();
         OutputStream out = new FileOutputStream(file);
 
         int receivedSize = 0;
         int count;
         while ((count = in.read(buffer)) > 0) {
-            System.out.write(buffer, 0, count);
             out.write(buffer, 0, count);
             receivedSize += count;
             if (receivedSize >= size)
@@ -159,6 +202,12 @@ public class ClientHandler implements Runnable {
         }
 
         out.close();
+        String[] fileParts = formattedFileName.split("\\.", 2);
+        String fileNamePrefix = fileParts[0];
+        String realFileName = fileNamePrefix.split("_")[0];
+        String fileExt = fileParts[1];
+        String filename = realFileName + "." + fileExt;
+
         for (ClientHandler client : Server.clientHandlers) {
             if (client.getUsername().equals(recipient)) {
                 client.writer.write("FILE" + "\n");
