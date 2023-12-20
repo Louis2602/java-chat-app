@@ -3,20 +3,23 @@ package client;
 import server.Server;
 
 import javax.swing.*;
-import javax.swing.text.BadLocationException;
-import javax.swing.text.StyleConstants;
-import javax.swing.text.StyledDocument;
+import javax.swing.text.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
 import java.net.Socket;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
-import javax.swing.text.*;
+import java.util.List;
 
 
 public class ChatApp extends JFrame {
+    public JTextPane tabChatPane;
+    public HashMap<String, JTextPane> userChatPanes = new HashMap<>();
+    Thread clientReceiver;
+    JScrollPane chatScrollPane;
+    StyledDocument doc;
+    Socket socket;
     private JList<String> onlineUsersList;
     private JList<String> groupsList;
     private JTextField messageField;
@@ -25,15 +28,7 @@ public class ChatApp extends JFrame {
     private String recipient = "";
     private BufferedReader reader;
     private BufferedWriter writer;
-    Thread clientReceiver;
     private JTabbedPane conversationsTabbedPane;
-    public JTextPane tabChatPane;
-    JScrollPane chatScrollPane;
-    StyledDocument doc;
-    Socket socket;
-
-
-    public HashMap<String, JTextPane> userChatPanes = new HashMap<>();
 
     public ChatApp(String username, Socket socket, BufferedReader reader, BufferedWriter writer) {
         this.username = username;
@@ -111,9 +106,76 @@ public class ChatApp extends JFrame {
         splitPane.setTopComponent(topPanel);
 
         JPanel groupsPanel = createPanelWithBorderLayout("Groups");
-        groupsList = new JList<>(new String[]{"Group 1", "Group 2", "Group 3"});
+
+        groupsList = new JList<>();
         JScrollPane groupsScrollPane = new JScrollPane(groupsList);
         JButton createGroupButton = new JButton("Create Group");
+        createGroupButton.addActionListener(e -> {
+            // Create a dialog
+            JDialog dialog = new JDialog(this, "Create Group", true);
+            dialog.setLayout(new BorderLayout());
+
+            // Panel for components
+            JPanel dialogPanel = new JPanel(new BorderLayout());
+
+            // Field to enter group name
+            JTextField groupNameField = new JTextField(20);
+            JPanel groupNamePanel = new JPanel();
+            groupNamePanel.add(new JLabel("Group Name:"));
+            groupNamePanel.add(groupNameField);
+
+            // List to choose users for the group
+            ListModel<String> onlineUsersModel = onlineUsersList.getModel();
+            JList<String> usersList = new JList<>(onlineUsersModel);
+            JScrollPane usersScrollPane = new JScrollPane(usersList);
+
+            // Add components to the dialog panel
+            dialogPanel.add(groupNamePanel, BorderLayout.NORTH);
+            dialogPanel.add(usersScrollPane, BorderLayout.CENTER);
+
+            // Buttons for confirmation and cancel
+            JPanel buttonsPanel = new JPanel();
+            JButton confirmButton = new JButton("Create");
+            confirmButton.addActionListener(confirmEvent -> {
+                // Handle the creation of the group here
+                String groupName = groupNameField.getText();
+                if (groupName.isEmpty()) {
+                    JOptionPane.showMessageDialog(ChatApp.this, "Tên group không được trống", "Lỗi tạo group",
+                            JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+                System.out.println("Group Name: " + groupName);
+                List<String> selectedUsers = usersList.getSelectedValuesList();
+                try {
+                    writer.write("CREATE GROUP\n");
+                    writer.write(groupName);
+                    writer.newLine();
+                    writer.write(selectedUsers.toString());
+                    writer.newLine();
+                    writer.flush();
+                } catch (IOException ex) {
+                    throw new RuntimeException(ex);
+                }
+
+                for (String selectedUser : selectedUsers) {
+                    System.out.println(selectedUser);
+                }
+
+                dialog.dispose(); // Close the dialog after processing
+            });
+            JButton cancelButton = new JButton("Cancel");
+            cancelButton.addActionListener(cancelEvent -> dialog.dispose());
+
+            buttonsPanel.add(confirmButton);
+            buttonsPanel.add(cancelButton);
+
+            // Add components to the dialog
+            dialog.add(dialogPanel, BorderLayout.CENTER);
+            dialog.add(buttonsPanel, BorderLayout.SOUTH);
+
+            dialog.pack();
+            dialog.setVisible(true);
+        });
         groupsPanel.add(groupsScrollPane, BorderLayout.CENTER);
         groupsPanel.add(createGroupButton, BorderLayout.SOUTH);
 
@@ -459,6 +521,7 @@ public class ChatApp extends JFrame {
             e1.printStackTrace();
         }
     }
+
     class HyberlinkListener extends AbstractAction {
         String filename;
         byte[] file;

@@ -1,6 +1,7 @@
 package server;
 
 import java.io.*;
+import java.lang.reflect.Array;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -14,6 +15,7 @@ public class Server {
 
     public static ArrayList<ClientHandler> clientHandlers = new ArrayList<>();
 
+    public static ArrayList<Group> groups = new ArrayList<>();
 
     public void startServer() {
         try {

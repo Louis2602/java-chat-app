@@ -40,6 +40,9 @@ public class ClientHandler implements Runnable {
                     case "MESSAGE":
                         broadcastMessageToClient();
                         break;
+                    case "CREATE GROUP":
+                        handleCreateGroupChat();
+                        break;
                     case "FILE":
                         handleReceiveFile();
                         break;
@@ -86,7 +89,11 @@ public class ClientHandler implements Runnable {
         isLoggedIn = false;
         Server.updateOnlineUsers();
     }
+    private void handleCreateGroupChat() throws IOException {
+        String groupName = reader.readLine();
+        String listUsers = reader.readLine();
 
+    }
     /*
     Send the message to all the clients in a group chat, except the one who send
      */
