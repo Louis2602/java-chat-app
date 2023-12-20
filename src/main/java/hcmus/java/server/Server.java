@@ -71,22 +71,17 @@ public class Server {
 
     public static void updateGroups() {
         StringBuilder message = new StringBuilder();
-        //String usersInGroup;
         for (ClientHandler client : clientHandlers) {
             message.setLength(0);
-            //usersInGroup = null;
-            if (client.getIsLoggedIn()) {
+            if (client.getIsLoggedIn() && !client.groupIds.isEmpty()) {
                 try {
                     for (Integer groupId : client.groupIds) {
                         Group group = Group.findGroup(groups, groupId);
                         assert group != null;
-                        message.append(group.name);
-                        message.append(",");
-                        //usersInGroup = String.valueOf(group.users);
+                        message.append(group.id).append("-").append(group.name).append(",");
                     }
                     client.getWriter().write("GROUPS" + "\n");
                     client.getWriter().write(message + "\n");
-                    //client.getWriter().write(usersInGroup + "\n");
                     client.getWriter().flush();
                 } catch (IOException e) {
                     e.printStackTrace();

@@ -1,5 +1,0 @@
-a: hi
-s: hello
-a: <test_20231220_153036.txt>
-a: okk
-s: good

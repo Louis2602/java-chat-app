@@ -34,6 +34,9 @@ public class ClientReceiver implements Runnable {
                     case "MESSAGE":
                         handleMessageFromClient();
                         break;
+                    case "MESSAGE GROUP":
+                        handleMessageFromGroup();
+                        break;
                     case "USERS IN GROUP":
                         retrieveUsersInGroup();
                         break;
@@ -50,6 +53,7 @@ public class ClientReceiver implements Runnable {
     }
 
     private void handleFileFromClient() throws IOException {
+        String groupName = reader.readLine();
         String sender = reader.readLine();
         String filename = reader.readLine();
 
@@ -65,13 +69,25 @@ public class ClientReceiver implements Runnable {
             file.write(buffer, 0, bytesRead);
             size -= bytesRead;
         }
-        chatApp.displayFile(sender, filename, file.toByteArray(), false);
+        if(groupName.isEmpty()) {
+            chatApp.displayFile(sender, filename, file.toByteArray(), false, "");
+        } else {
+            chatApp.displayFile(sender, filename, file.toByteArray(), false, groupName);
+        }
     }
 
     private void handleMessageFromClient() throws IOException {
         String sender = reader.readLine();
         String message = reader.readLine();
-        chatApp.displayMessage(sender, message, false);
+        chatApp.displayMessage(sender, message, false, "");
+    }
+
+    private void handleMessageFromGroup() throws IOException {
+        String sender = reader.readLine();
+        String groupName = reader.readLine();
+        String message = reader.readLine();
+
+        chatApp.displayMessage(sender, message, false, groupName);
     }
 
     private void retrieveOnlineUsers() throws IOException {
@@ -114,9 +130,16 @@ public class ClientReceiver implements Runnable {
 
     private void retrieveGroupUsers() throws IOException {
         String groups = reader.readLine();
-
         String[] groupArray = groups.split(",");
-        List<String> userGroups = new ArrayList<>(Arrays.asList(groupArray));
+        List<String> groupsName = new ArrayList<>();
+        for(String group : groupArray) {
+            String[] parts = group.split("-");
+            Integer groupId = Integer.parseInt(parts[0]);
+            String groupName = parts[1];
+            chatApp.groups.put(groupId, groupName);
+            groupsName.add(groupName);
+        }
+        List<String> userGroups = new ArrayList<>(groupsName);
 
         SwingUtilities.invokeLater(() -> {
             DefaultListModel<String> model = new DefaultListModel<>();
@@ -124,16 +147,14 @@ public class ClientReceiver implements Runnable {
             chatApp.updateUserGroupsList(model);
         });
 
-        /*for (String group : userGroups) {
-            if (!group.equals(chatApp.getUsername())) {
-                if (chatApp.userChatPanes.get(user) == null) {
-                    System.out.println("CREATING CHAT AREA FOR ALL ONLINE USERS...");
-                    System.out.println("USER: " + user);
-                    JTextPane userChatPane = new JTextPane();
-                    userChatPane.setEditable(false);
-                    chatApp.userChatPanes.put(user, userChatPane);
-                }
+        for (String groupName : userGroups) {
+            if (chatApp.userChatPanes.get(groupName) == null) {
+                System.out.println("CREATING CHAT AREA FOR ALL GROUPS OF USER...");
+                System.out.println("GROUP: " + groupName);
+                JTextPane userChatPane = new JTextPane();
+                userChatPane.setEditable(false);
+                chatApp.userChatPanes.put(groupName, userChatPane);
             }
-        }*/
+        }
     }
 }

@@ -51,6 +51,9 @@ public class ClientHandler implements Runnable {
                     case "GET USERS IN GROUP":
                         getUsersInGroup();
                         break;
+                    case "MESSAGE GROUP CHAT":
+                        broadcastMessageToGroup();
+                        break;
                     case "FILE":
                         handleReceiveFile();
                         break;
@@ -112,16 +115,14 @@ public class ClientHandler implements Runnable {
                 }
             }
         }
+
         Server.updateGroups();
     }
     public void getUsersInGroup() throws IOException {
         String groupName = reader.readLine();
-        System.out.println("SERVER: " + groupName);
-        System.out.println(Server.groups.size());
         String usersInGroup;
 
         for(Group group : Server.groups) {
-            System.out.println(group.name);
             if(group.name.equals(groupName)) {
                 usersInGroup = String.valueOf(group.users);
                 writer.write("USERS IN GROUP\n");
@@ -134,12 +135,17 @@ public class ClientHandler implements Runnable {
     /*
     Send the message to all the clients in a group chat, except the one who send
      */
-    public void broadcastMessage(String messageToSend) throws IOException {
+    public void broadcastMessageToGroup() throws IOException {
+        String messageToSend = reader.readLine();
+        String groupId = reader.readLine();
+        String groupName = reader.readLine();
         for (ClientHandler clientHandler : Server.clientHandlers) {
             try {
-                if (!clientHandler.clientUsername.equals(clientUsername)) {
-                    clientHandler.writer.write("MESSAGE" + "\n");
+                if (!clientHandler.clientUsername.equals(clientUsername) && clientHandler.groupIds.contains(Integer.parseInt(groupId))) {
+                    clientHandler.writer.write("MESSAGE GROUP" + "\n");
                     clientHandler.writer.write(clientUsername);
+                    clientHandler.writer.newLine();
+                    clientHandler.writer.write(groupName);
                     clientHandler.writer.newLine();
                     clientHandler.writer.write(messageToSend);
                     clientHandler.writer.newLine();
@@ -174,6 +180,8 @@ public class ClientHandler implements Runnable {
     }
 
     public void handleReceiveFile() throws IOException {
+        String groupId = reader.readLine();
+        String groupName = reader.readLine();
         String recipient = reader.readLine();
         String formattedFileName = reader.readLine();
         int size = Integer.parseInt(reader.readLine());
@@ -208,28 +216,60 @@ public class ClientHandler implements Runnable {
         String fileExt = fileParts[1];
         String filename = realFileName + "." + fileExt;
 
-        for (ClientHandler client : Server.clientHandlers) {
-            if (client.getUsername().equals(recipient)) {
-                client.writer.write("FILE" + "\n");
-                client.writer.write(this.clientUsername);
-                client.writer.newLine();
-                client.writer.write(filename);
-                client.writer.newLine();
-                client.writer.write(String.valueOf(size));
-                client.writer.newLine();
-                client.writer.flush();
+        if(groupName.isEmpty()) {
+            for (ClientHandler client : Server.clientHandlers) {
+                if (client.getUsername().equals(recipient)) {
+                    client.writer.write("FILE" + "\n");
+                    client.writer.write(groupName);
+                    client.writer.newLine();
+                    client.writer.write(this.clientUsername);
+                    client.writer.newLine();
+                    client.writer.write(filename);
+                    client.writer.newLine();
+                    client.writer.write(String.valueOf(size));
+                    client.writer.newLine();
+                    client.writer.flush();
 
-                // Send the file content
-                FileInputStream fileInputStream = new FileInputStream(file);
-                OutputStream clientOutputStream = client.socket.getOutputStream();
+                    // Send the file content
+                    FileInputStream fileInputStream = new FileInputStream(file);
+                    OutputStream clientOutputStream = client.socket.getOutputStream();
 
-                while ((count = fileInputStream.read(buffer)) > 0) {
-                    clientOutputStream.write(buffer, 0, count);
+                    while ((count = fileInputStream.read(buffer)) > 0) {
+                        clientOutputStream.write(buffer, 0, count);
+                    }
+
+                    // Clean up resources
+                    fileInputStream.close();
+                    clientOutputStream.flush();
                 }
+            }
+        }
+        else {
+            for (ClientHandler client : Server.clientHandlers) {
+                if (!client.clientUsername.equals(clientUsername) && client.groupIds.contains(Integer.parseInt(groupId))) {
+                    client.writer.write("FILE" + "\n");
+                    client.writer.write(groupName);
+                    client.writer.newLine();
+                    client.writer.write(this.clientUsername);
+                    client.writer.newLine();
+                    client.writer.write(filename);
+                    client.writer.newLine();
+                    client.writer.write(String.valueOf(size));
+                    client.writer.newLine();
+                    client.writer.flush();
 
-                // Clean up resources
-                fileInputStream.close();
-                clientOutputStream.flush();
+                    // Send the file content
+                    FileInputStream fileInputStream = new FileInputStream(file);
+                    OutputStream clientOutputStream = client.socket.getOutputStream();
+
+                    while ((count = fileInputStream.read(buffer)) > 0) {
+                        clientOutputStream.write(buffer, 0, count);
+                    }
+
+                    // Clean up resources
+                    fileInputStream.close();
+                    clientOutputStream.flush();
+                }
             }
         }
     }

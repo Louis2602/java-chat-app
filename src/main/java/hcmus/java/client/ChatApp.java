@@ -10,9 +10,7 @@ import java.awt.event.*;
 import java.io.*;
 import java.net.Socket;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.HashMap;
+import java.util.*;
 import java.util.List;
 
 
@@ -28,11 +26,11 @@ public class ChatApp extends JFrame {
     private JTextField messageField;
     private JList<String> listUsersInGroup;
     private String username;
-    private String groupName;
     private String recipient = "";
     private BufferedReader reader;
     private BufferedWriter writer;
     private JTabbedPane conversationsTabbedPane;
+    HashMap<Integer, String> groups = new HashMap<>();
 
     public ChatApp(String username, Socket socket, BufferedReader reader, BufferedWriter writer) {
         this.username = username;
@@ -101,13 +99,13 @@ public class ChatApp extends JFrame {
         onlineUsersList.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 1) { // Detect a single click on a user
+                if (e.getClickCount() == 2) { // Detect a single click on a user
                     JList<String> list = (JList<String>) e.getSource();
                     int index = list.locationToIndex(e.getPoint()); // Get the index of the clicked item
                     if (index >= 0) {
                         recipient = list.getModel().getElementAt(index);
                         // You can start a conversation with the selected user here
-                        startConversation(recipient);
+                        startConversation(recipient, false);
                     }
                 }
             }
@@ -135,9 +133,12 @@ public class ChatApp extends JFrame {
                     int index = list.locationToIndex(e.getPoint()); // Get the index of the clicked item
                     if (index >= 0) {
                         String selectedGroup = list.getModel().getElementAt(index);
+                        recipient = selectedGroup;
                         // Fetch users in the selected group and update the listUsersInGroup
                         try {
                             updateListUsersInSelectedGroup(selectedGroup);
+                            // You can start a conversation with the selected user here
+                            startConversation(selectedGroup, true);
                         } catch (IOException ex) {
                             throw new RuntimeException(ex);
                         }
@@ -276,12 +277,15 @@ public class ChatApp extends JFrame {
         return panel;
     }
 
-    private void startConversation(String selectedUser) {
+    private void startConversation(String selectedObject, Boolean isGroupChat) {
+        /*
+        selectedObject: could be a single user or a group chat
+         */
         int tabCount = conversationsTabbedPane.getTabCount();
         boolean tabExists = false;
         int tabIndex = 0;
         for (int i = 0; i < tabCount; i++) {
-            if (conversationsTabbedPane.getTitleAt(i).equals(selectedUser)) {
+            if (conversationsTabbedPane.getTitleAt(i).equals(selectedObject)) {
                 tabExists = true;
                 tabIndex = i;
                 break;
@@ -289,18 +293,19 @@ public class ChatApp extends JFrame {
         }
 
         if (!tabExists) {
-            JPanel chatPanel = createChatPanel(selectedUser);
-            JPanel tabHeader = createTabHeader(selectedUser);
-            conversationsTabbedPane.addTab(selectedUser, chatPanel);
-            conversationsTabbedPane.setTabComponentAt(conversationsTabbedPane.indexOfTab(selectedUser), tabHeader);
-            tabIndex = conversationsTabbedPane.indexOfTab(selectedUser);
+            JPanel chatPanel = createChatPanel(selectedObject, isGroupChat);
+            JPanel tabHeader = createTabHeader(selectedObject);
+            conversationsTabbedPane.addTab(selectedObject, chatPanel);
+            conversationsTabbedPane.setTabComponentAt(conversationsTabbedPane.indexOfTab(selectedObject), tabHeader);
+            tabIndex = conversationsTabbedPane.indexOfTab(selectedObject);
         }
 
         // Select the tab for the selected user
         conversationsTabbedPane.setSelectedIndex(tabIndex);
-        String chatHistory = ChatHistory.loadChatHistory(username, selectedUser); // Load chat history
-        tabChatPane = userChatPanes.get(selectedUser);
+        String chatHistory = ChatHistory.loadChatHistory(username, selectedObject); // Load chat history
+        tabChatPane = userChatPanes.get(selectedObject);
         if (tabChatPane != null && chatHistory != null && !chatHistory.isEmpty()) {
+            tabChatPane.setText("");
             String[] lines = chatHistory.split("\n"); // Split the history into individual lines
 
             for (String line : lines) {
@@ -340,29 +345,29 @@ public class ChatApp extends JFrame {
 
                         // Display file entry using displayFile method
                         if (sender.equals(this.username)) {
-                            displayFile(sender, filename, byteArray.toByteArray(), true);
+                            displayFile(sender, filename, byteArray.toByteArray(), true, "");
                         } else {
-                            displayFile(sender, filename, byteArray.toByteArray(), false);
+                            displayFile(sender, filename, byteArray.toByteArray(), false, "");
                         }
                     } catch (IOException ioe) {
                         ioe.printStackTrace();
                     }
                 } else {
                     if (sender.equals(this.username)) {
-                        displayMessage(sender, message, true);
+                        displayMessage(sender, message, true, "");
                     } else {
-                        displayMessage(sender, message, false);
+                        displayMessage(sender, message, false, "");
                     }
                 }
             }
         }
     }
 
-    private JPanel createTabHeader(String selectedUser) {
+    private JPanel createTabHeader(String selectedObject) {
         JPanel tabHeader = new JPanel(new BorderLayout());
         tabHeader.setOpaque(false); // Make the tab header transparent
 
-        JLabel titleLabel = new JLabel(selectedUser);
+        JLabel titleLabel = new JLabel(selectedObject);
         titleLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 5)); // Add padding between label and button
 
         JButton closeButton = new JButton("x");
@@ -371,7 +376,7 @@ public class ChatApp extends JFrame {
         closeButton.setContentAreaFilled(false);
         closeButton.setForeground(Color.RED);
         closeButton.addActionListener(e -> {
-            int tabIndex = conversationsTabbedPane.indexOfTab(selectedUser);
+            int tabIndex = conversationsTabbedPane.indexOfTab(selectedObject);
             if (tabIndex >= 0) {
                 conversationsTabbedPane.remove(tabIndex);
             }
@@ -383,11 +388,12 @@ public class ChatApp extends JFrame {
         return tabHeader;
     }
 
-    private JPanel createChatPanel(String selectedUser) {
+    private JPanel createChatPanel(String selectedObject, Boolean isGroupChat) {
         JPanel chatPanel = new JPanel(new BorderLayout());
+        String groupName = isGroupChat ? selectedObject : "";
 
-        if (tabChatPane != userChatPanes.get(selectedUser)) {
-            tabChatPane = userChatPanes.get(selectedUser);
+        if (tabChatPane != userChatPanes.get(selectedObject)) {
+            tabChatPane = userChatPanes.get(selectedObject);
 
         }
         chatScrollPane.setViewportView(tabChatPane);
@@ -405,7 +411,7 @@ public class ChatApp extends JFrame {
         chatPanel.add(messagePanel, BorderLayout.SOUTH);
 
         sendButton.addActionListener(e -> {
-            sendMessage(selectedUser);
+            sendMessage(selectedObject, isGroupChat);
         });
 
         // handle file
@@ -424,15 +430,27 @@ public class ChatApp extends JFrame {
                     bis = new BufferedInputStream(new FileInputStream(jfc.getSelectedFile()));
                     bis.read(selectedFile, 0, selectedFile.length);
 
-                    System.out.println("Send file " + fileName + " to user: " + selectedUser);
+                    System.out.println("Send file " + fileName + " to user: " + selectedObject);
                     String[] fileParts = fileName.split("\\.", 2);
                     String fileNamePrefix = fileParts[0];
                     String fileExt = fileParts[1];
                     String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(Calendar.getInstance().getTime());
                     String formattedFileName = fileNamePrefix + "_" + timeStamp + "." + fileExt;
-                    ChatHistory.saveChatHistory(username, selectedUser, "<" + formattedFileName + ">");
+                    ChatHistory.saveChatHistory(username, selectedObject, "<" + formattedFileName + ">");
 
+                    Integer groupId = -1;
+                    for (Map.Entry<Integer, String> entry : groups.entrySet()) {
+                        if (entry.getValue().equals(selectedObject)) {
+                            groupId = entry.getKey();
+                            break;
+                        }
+                    }
+                    assert groupId != null;
                     writer.write("FILE" + "\n");
+                    writer.write(groupId.toString());
+                    writer.newLine();
+                    writer.write(groupName);
+                    writer.newLine();
                     writer.write(recipient);
                     writer.newLine();
                     writer.write(formattedFileName);
@@ -455,7 +473,7 @@ public class ChatApp extends JFrame {
                     in.close();
                     out.flush();
 
-                    displayFile(username, fileName, selectedFile, true);
+                    displayFile(username, fileName, selectedFile, true, "");
                 } catch (IOException e1) {
                     e1.printStackTrace();
                 }
@@ -466,31 +484,70 @@ public class ChatApp extends JFrame {
     }
 
 
-    private void sendMessage(String selectedUser) {
-        try {
-            String message = messageField.getText();
-            if (!message.isEmpty()) {
-                displayMessage(username, message, true);
-                ChatHistory.saveChatHistory(username, selectedUser, message);
-                messageField.setText(""); // Clear the message field after sending
+    private void sendMessage(String selectedObject, Boolean isGroupChat) {
+        if (!isGroupChat) {
+            try {
+                String message = messageField.getText();
+                if (!message.isEmpty()) {
+                    displayMessage(username, message, true, "");
+                    ChatHistory.saveChatHistory(username, selectedObject, message);
+                    messageField.setText(""); // Clear the message field after sending
+                }
+                writer.write("MESSAGE" + "\n");
+                writer.write(message);
+                writer.newLine();
+                writer.write(selectedObject); // recipient name
+                writer.newLine();
+                writer.flush();
+            } catch (IOException e) {
+                e.printStackTrace();
             }
-            writer.write("MESSAGE" + "\n");
-            writer.write(message);
-            writer.newLine();
-            writer.write(selectedUser);
-            writer.newLine();
-            writer.flush();
-        } catch (IOException e) {
-            e.printStackTrace();
+        } else {
+            try {
+                String message = messageField.getText();
+                if (!message.isEmpty()) {
+                    displayMessage(username, message, true, selectedObject);
+                    ChatHistory.saveChatHistory(username, selectedObject, message);
+                    messageField.setText(""); // Clear the message field after sending
+                }
+                Integer groupId = null;
+                for (Map.Entry<Integer, String> entry : groups.entrySet()) {
+                    if (entry.getValue().equals(selectedObject)) {
+                        groupId = entry.getKey();
+                        break;
+                    }
+                }
+                writer.write("MESSAGE GROUP CHAT" + "\n");
+                writer.write(message);
+                writer.newLine();
+                assert groupId != null;
+                writer.write(groupId.toString()); // group id
+                writer.newLine();
+                writer.write(selectedObject); // group name
+                writer.newLine();
+                writer.flush();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
+
     }
 
-    public void displayMessage(String sender, String message, Boolean yourMessage) {
-        if (sender.equals(this.username)) {
-            doc = userChatPanes.get(recipient).getStyledDocument();
+    public void displayMessage(String sender, String message, Boolean yourMessage, String groupName) {
+        if(groupName.isEmpty()) {
+            if (sender.equals(this.username)) {
+                doc = userChatPanes.get(recipient).getStyledDocument();
+            } else {
+                doc = userChatPanes.get(sender).getStyledDocument();
+            }
         } else {
-            doc = userChatPanes.get(sender).getStyledDocument();
+            if (sender.equals(this.username)) {
+                doc = userChatPanes.get(recipient).getStyledDocument();
+            } else {
+                doc = userChatPanes.get(groupName).getStyledDocument();
+            }
         }
+
         Style userStyle = doc.getStyle("User style");
 
         if (userStyle == null) {
@@ -530,13 +587,22 @@ public class ChatApp extends JFrame {
         }
     }
 
-    public void displayFile(String sender, String filename, byte[] file, Boolean yourMessage) {
+    public void displayFile(String sender, String filename, byte[] file, Boolean yourMessage, String groupName) {
         String window = null;
-        if (sender.equals(this.username)) {
-            window = recipient;
+        if(groupName.isEmpty()) {
+            if (sender.equals(this.username)) {
+                window = recipient;
+            } else {
+                window = sender;
+            }
         } else {
-            window = sender;
+            if (sender.equals(this.username)) {
+                window = recipient;
+            } else {
+                window = groupName;
+            }
         }
+
         doc = userChatPanes.get(window).getStyledDocument();
         Style userStyle = doc.getStyle("User style");
 
