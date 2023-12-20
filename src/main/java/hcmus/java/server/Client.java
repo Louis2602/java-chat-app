@@ -1,4 +1,4 @@
-package server;
+package hcmus.java.server;
 
 import java.io.*;
 import java.net.Socket;

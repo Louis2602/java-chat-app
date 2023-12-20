@@ -1,4 +1,4 @@
-package server;
+package hcmus.java.server;
 
 import javax.swing.*;
 import java.awt.*;

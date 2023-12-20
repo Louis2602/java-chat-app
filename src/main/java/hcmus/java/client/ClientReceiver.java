@@ -1,4 +1,4 @@
-package client;
+package hcmus.java.client;
 
 import javax.swing.*;
 import java.io.*;
